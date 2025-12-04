@@ -1,79 +1,60 @@
 <?php
-namespace App\Controllers;
-
-use Utils\Session;
-use App\Models\UsuarioModel;
-use App\Models\MateriaModel;
-use App\Models\CarreraModel;
-
-class AdminController {
-    
-    private $usuarioModel;
-    private $materiaModel;
-    private $carreraModel;
-    
-    public function __construct() {
-        Session::requireRole('admin');
-        $this->usuarioModel = new UsuarioModel();
-        $this->materiaModel = new MateriaModel();
-        $this->carreraModel = new CarreraModel();
-    }
-    
-    public function dashboard() {
-        $data = [
-            'totalUsuarios' => count($this->usuarioModel->listar()),
-            'totalMaterias' => count($this->materiaModel->listar()),
-            'totalCarreras' => count($this->carreraModel->listar())
-        ];
-        $this->view('admin/dashboard', $data);
-    }
-    
-    public function materias() {
-        $materias = $this->materiaModel->listar();
-        $carreras = $this->carreraModel->listar();
-        
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            try {
-                $datos = [
-                    'nombre' => $_POST['nombre'],
-                    'descripcion' => $_POST['descripcion'],
-                    'costo' => $_POST['costo'],
-                    'docente' => $_POST['docente'],  // Solo nombre
-                    'id_carrera' => $_POST['id_carrera']
-                ];
-                
-                if (isset($_POST['id_materia'])) {
-                    // Actualizar
-                    $this->materiaModel->actualizar($_POST['id_materia'], $datos);
-                    Session::setFlash('success', 'Materia actualizada');
-                } else {
-                    // Crear
-                    $this->materiaModel->crear($datos);
-                    Session::setFlash('success', 'Materia creada');
-                }
-                
-                header('Location: ?page=admin&action=materias');
-                exit();
-                
-            } catch (\Exception $e) {
-                Session::setFlash('error', $e->getMessage());
-            }
-        }
-        
-        $this->view('admin/materias', [
-            'materias' => $materias,
-            'carreras' => $carreras
-        ]);
-    }
-    
-    public function usuarios() {
-        $usuarios = $this->usuarioModel->listar();
-        $this->view('admin/usuarios', ['usuarios' => $usuarios]);
-    }
-    
-    private function view($view, $data = []) {
-        extract($data);
-        require __DIR__ . "/../views/$view.php";
-    }
-}
+// app/views/admin/dashboard.php
 ?>
+<div class="dashboard">
+    <h1>Panel de Administración</h1>
+    <p>Bienvenido, <?php echo htmlspecialchars(Session::get('user_name')); ?></p>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Estudiantes</h3>
+            <p class="number"><?php echo $totalEstudiantes; ?></p>
+            <a href="index.php?page=admin&action=usuarios">Ver todos</a>
+        </div>
+        
+        <div class="stat-card">
+            <h3>Materias</h3>
+            <p class="number"><?php echo $totalMaterias; ?></p>
+            <a href="index.php?page=admin&action=materias">Gestionar</a>
+        </div>
+        
+        <div class="stat-card">
+            <h3>Carreras</h3>
+            <p class="number"><?php echo $totalCarreras; ?></p>
+            <a href="index.php?page=admin&action=carreras">Gestionar</a>
+        </div>
+        
+        <div class="stat-card">
+            <h3>Matrículas Hoy</h3>
+            <p class="number"><?php echo $matriculasHoy; ?></p>
+            <a href="index.php?page=admin&action=matriculas">Ver todas</a>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <h3>Actividad Reciente</h3>
+            <div class="activity-list">
+                <?php foreach ($ultimasActividades as $actividad): ?>
+                <div class="activity-item">
+                    <strong><?php echo htmlspecialchars($actividad['usuario']); ?></strong>
+                    <?php echo htmlspecialchars($actividad['accion']); ?>
+                    <small><?php echo date('H:i', strtotime($actividad['fecha'])); ?></small>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <h3>Materias más Populares</h3>
+            <div class="popular-list">
+                <?php foreach ($materiasPopulares as $materia): ?>
+                <div class="popular-item">
+                    <?php echo htmlspecialchars($materia['nombre']); ?>
+                    <span class="badge"><?php echo $materia['total_matriculas']; ?> inscritos</span>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+</div>

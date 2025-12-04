@@ -1,7 +1,9 @@
 <?php
 namespace App\Models;
+require_once __DIR__ . '/../config/conexion.php';
+require_once __DIR__ . '/../utils/validaciones.php';
 
-use Config\Database;
+
 
 class UsuarioModel {
     private $db;

@@ -1,34 +1,35 @@
 <?php
+// app/utils/validaciones.php
 
-// Validar correo institucional
+function validarNoVacio($campo, $nombreCampo) {
+    if (empty(trim($campo))) {
+        throw new Exception("El campo '$nombreCampo' no puede estar vacío.");
+    }
+}
+
 function validarCorreoUTP($correo) {
+    if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+        throw new Exception("Correo electrónico inválido.");
+    }
+    
     if (!preg_match("/@utp\.ac\.pa$/", $correo)) {
         throw new Exception("El correo debe ser institucional (@utp.ac.pa).");
     }
 }
 
-// Validar campos vacíos
-function validarNoVacio($campo, $nombreCampo) {
-    if (empty(trim($campo))) {
-        throw new Exception("El campo $nombreCampo no puede estar vacío.");
-    }
-}
-
-// Validar que las contraseñas coincidan
-function validarCoincidenciaPassword($pass1, $pass2) {
-    if ($pass1 !== $pass2) {
-        throw new Exception("Las contraseñas no coinciden.");
-    }
-}
-
-// Validar fortaleza de contraseña
 function validarPassword($password) {
     if (strlen($password) < 8) {
         throw new Exception("La contraseña debe tener al menos 8 caracteres.");
     }
 }
 
-// Función para login (faltante)
+function validarCoincidenciaPassword($pass1, $pass2) {
+    if ($pass1 !== $pass2) {
+        throw new Exception("Las contraseñas no coinciden.");
+    }
+}
+
+// Funciones para login
 function validarLogin($correo, $password) {
     $errores = [];
     
@@ -43,7 +44,6 @@ function validarLogin($correo, $password) {
     return $errores;
 }
 
-// Campos vacíos (para arrays)
 function camposVacios($datos) {
     foreach ($datos as $d) {
         if (empty(trim($d))) {
@@ -53,7 +53,6 @@ function camposVacios($datos) {
     return false;
 }
 
-// Añadir mensajes de error al arreglo
 function agregarError(&$errores, $mensaje) {
     $errores[] = $mensaje;
 }
