@@ -9,13 +9,11 @@ $conexion_file = $base_path . "/config/conexion.php";
 $validaciones_file = $base_path . "/utils/validaciones.php";
 
 if (!file_exists($conexion_file)) {
-    die("ERROR: No se encuentra 'conexion.php' en: $conexion_file<br>
-         Por favor, crea el archivo en esa ubicación.");
+    die("ERROR: No se encuentra 'conexion.php'");
 }
 
 if (!file_exists($validaciones_file)) {
-    die("ERROR: No se encuentra 'validaciones.php' en: $validaciones_file<br>
-         Por favor, crea el archivo en esa ubicación.");
+    die("ERROR: No se encuentra 'validaciones.php'");
 }
 
 // Incluir los archivos
@@ -73,47 +71,56 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <title>Login - Sistema de Matrícula</title>
+    <link rel="stylesheet" href="http://localhost/Sistema-de-matricula-/app/public/assets/css/style.css">
 </head>
 <body>
-    <h2>Iniciar Sesión</h2>
-    
-    <?php 
-    // Mostrar mensajes de error si existen
-    if (isset($_SESSION['error'])) {
-        echo "<div class='error'>" . $_SESSION['error'] . "</div>";
-        unset($_SESSION['error']);
-    }
-    
-    if (isset($_SESSION['success'])) {
-        echo "<div class='success'>" . $_SESSION['success'] . "</div>";
-        unset($_SESSION['success']);
-    }
-    
-    echo $mensaje; 
-    ?>
-    
-    <form method="POST" action="">
-        <label>Correo institucional (@utp.ac.pa):</label><br>
-        <input type="email" name="correo" placeholder="ejemplo@utp.ac.pa" required><br><br>
+    <div class="auth-container">
+        <div class="logo-container">
+            <img src="http://localhost/Sistema-de-matricula-/app/public/assets/images/utp.png" alt="Logo UTP" class="logo-utp">
+        </div>
+
+    <h2>INICIAR SESIÓN</h2>
         
-        <label>Contraseña:</label><br>
-        <input type="password" name="password" required><br><br>
+        <?php 
+        // Mostrar mensajes de error si existen
+        if (isset($_SESSION['error'])) {
+            echo "<div class='error'>" . $_SESSION['error'] . "</div>";
+            unset($_SESSION['error']);
+        }
         
-        <button type="submit">Ingresar</button>
-    </form>
-    
-    <p style="text-align: center; margin-top: 20px;">
-        ¿No tienes cuenta? <a href="registro.php">Regístrate aquí</a>
-    </p>
-    
-    <hr>
-    <p style="font-size: 12px; color: #666; text-align: center;">
-        Sistema de Matrícula UTP © 2025<br>
-    </p>
+        if (isset($_SESSION['success'])) {
+            echo "<div class='success'>" . $_SESSION['success'] . "</div>";
+            unset($_SESSION['success']);
+        }
+        
+        echo $mensaje; 
+        ?>
+        
+        <form method="POST" action="">
+            <label>Correo institucional:</label>
+            <input type="email" name="correo" required>
+            
+            <label>Contraseña:</label>
+            <input type="password" name="password" required>
+            
+            <button type="submit">Ingresar</button>
+        </form>
+        
+        <p>
+            ¿No tienes cuenta? <a href="registro.php">Regístrate aquí</a>
+        </p>
+        
+        <hr>
+        <p style="font-size: 12px; color: #666; text-align: center;">
+            Sistema de Matrícula UTP © 2025<br>
+            Todos los derechos reservados
+        </p>
+    </div>
 </body>
 </html>
