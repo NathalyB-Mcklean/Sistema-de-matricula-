@@ -220,9 +220,6 @@ $materias_populares = $conexion->query($query);
                     <h1>Saludos, <?php echo $_SESSION['user_name']; ?></h1>
                     <p id="current-datetime"></p>
                 </div>
-                <div style="color: #666; font-size: 14px;">
-                    Última actualización: <?php echo date('d/m/Y H:i'); ?>
-                </div>
             </div>
             
             <!-- Mostrar información del período activo -->
