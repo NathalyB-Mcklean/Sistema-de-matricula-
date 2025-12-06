@@ -150,7 +150,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     mensajeHTML = '<div style="margin-top: 5px; padding: 5px; background: #f9f9f9; border-radius: 4px; font-size: 12px;">';
                     mensajeHTML += '<strong>Falta:</strong><br>';
                     mensajeHTML += '• ' + mensajesFaltantes.join('<br>• ') + '<br>';
-                    mensajeHTML += '<em>Recomendación: Usa una combinación de todos los tipos</em>';
                     mensajeHTML += '</div>';
                 }
                 
@@ -161,21 +160,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     strengthBar.className += ' strength-weak';
                     mensaje.textContent = 'Contraseña débil (' + cumplidos + '/' + totalRequisitos + ' requisitos)';
                     mensaje.style.color = '#f44336';
+                    mensaje.style.fontSize = '12px'
                 } else if (cumplidos < 4) {
                     strengthBar.className += ' strength-medium';
                     mensaje.textContent = 'Contraseña media (' + cumplidos + '/' + totalRequisitos + ' requisitos)';
                     mensaje.style.color = '#ff9800';
+                    mensaje.style.fontSize = '12px'
                 } else {
                     strengthBar.className += ' strength-strong';
                     mensaje.textContent = 'Contraseña fuerte (' + cumplidos + '/' + totalRequisitos + ' requisitos)';
                     mensaje.style.color = '#2d8659';
-                    
-                    // Si todos los requisitos están cumplidos, mostrar mensaje positivo
-                    if (mensajesFaltantes.length === 0) {
-                        requirementsList.innerHTML = '<div style="margin-top: 5px; padding: 5px; background: #e8f5e9; border-radius: 4px; font-size: 12px; color: #1b5e20;">';
-                        requirementsList.innerHTML += '✓ ¡Tu contraseña cumple todos los requisitos de seguridad!';
-                        requirementsList.innerHTML += '</div>';
-                    }
+                    mensaje.style.fontSize = '12px'
                 }
             }
             
@@ -184,11 +179,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             if (confirmPassword.length === 0) {
                 confirmMsg.textContent = '';
             } else if (password !== confirmPassword) {
-                confirmMsg.textContent = '✗ Las contraseñas no coinciden';
+                confirmMsg.textContent = 'Las contraseñas no coinciden';
                 confirmMsg.style.color = '#f44336';
+                mensaje.style.fontSize = '12px'
             } else {
-                confirmMsg.textContent = '✓ Las contraseñas coinciden';
+                confirmMsg.textContent = 'Las contraseñas coinciden';
                 confirmMsg.style.color = '#2d8659';
+                mensaje.style.fontSize = '12px'
             }
             
             // Verificar que la contraseña cumpla todos los requisitos básicos
@@ -220,6 +217,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </head>
 <body>
     <div class="auth-container">
+        <div class="logo-container">
+            <img src="http://localhost/Sistema-de-matricula-/app/public/assets/images/utp.png" alt="Logo UTP" class="logo-utp">
+        </div>
         <h2>REGISTRO DE USUARIO</h2>
         
         <?php 
@@ -247,27 +247,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <label>Correo institucional (@utp.ac.pa):</label>
             <input type="email" name="correo" placeholder="mariah.carey@utp.ac.pa" required>
             
-            <label>Contraseña (mínimo 8 caracteres):</label>
-            <div style="position: relative;">
-                <input type="password" id="password" name="password" onkeyup="validarPassword()" required>
-                <span onclick="togglePasswordVisibility('password')" style="position: absolute; right: 10px; top: 10px; cursor: pointer; color: #666; font-size: 12px;">
-                </span>
+        <div class="password-row">
+            <div class="password-field">
+                <label>Contraseña:</label>
+                <div style="position: relative;">
+                    <input type="password" id="password" name="password" onkeyup="validarPassword()" required>
+                    <span onclick="togglePasswordVisibility('password')" style="position: absolute; right: 10px; top: 10px; cursor: pointer; color: #666; font-size: 12px;">
+                    </span>
+                </div>
+                <div id="password-strength" class="password-strength" style="display: none; margin-bottom: 5px;"></div>
             </div>
-            <div id="password-strength" class="password-strength" style="display: none; margin-bottom: 5px;"></div>
-            <small id="password-message" style="display: block; margin-bottom: 10px;"></small>
-            <div id="password-requirements" style="display: none; margin-bottom: 15px;"></div>
 
-            <label>Repetir contraseña:</label>
-            <div style="position: relative;">
-                <input type="password" id="password2" name="password2" onkeyup="validarPassword()" required>
-                <span onclick="togglePasswordVisibility('password2')" style="position: absolute; right: 10px; top: 10px; cursor: pointer; color: #666; font-size: 12px;">
-                </span>
+            <div class="password-field">
+                <label>Repetir contraseña:</label>
+                <div style="position: relative;">
+                    <input type="password" id="password2" name="password2" onkeyup="validarPassword()" required>
+                    <span onclick="togglePasswordVisibility('password2')" style="position: absolute; right: 10px; top: 10px; cursor: pointer; color: #666; font-size: 12px;">
+                    </span>
+                </div>
             </div>
-            <small id="confirm-message" style="display: block; margin-bottom: 15px;"></small>
-                        
-            <label>Repetir contraseña:</label>
-            <input type="password" id="password2" name="password2" onkeyup="validarPassword()" required>
-            <small id="confirm-message" style="display: block; margin-top: -10px; margin-bottom: 15px;"></small>
+        </div>
+
+        <!-- Mensajes alineados debajo de las dos columnas -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+            <small id="password-message" style="display: block;"></small>
+            <small id="confirm-message" style="display: block;"></small>
+        </div>
+
+        <div id="password-requirements" style="display: none; margin-bottom: 15px;"></div>
             
             <button type="submit">Registrarse</button>
         </form>

@@ -60,9 +60,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         // Redirigir según rol
         if ($usuario["rol"] === "admin") {
-            header("Location: ../../../public/index.php?page=admin&action=dashboard");
+            header("Location: ../../views/admin/dashboard.php");
         } else {
-            header("Location: ../../../public/index.php?page=estudiante&action=dashboard");
+            header("Location: ../../views/estudiante/dashboard.php");
         }
         exit();
         

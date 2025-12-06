@@ -157,6 +157,25 @@ input::placeholder {
     color: #aaa;
 }
 
+/* Contenedor para campos lado a lado */
+.password-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.password-field {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Responsive: en móviles una columna */
+@media (max-width: 768px) {
+    .password-row {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* Botón principal */
 button[type="submit"] {
     width: 100%;
