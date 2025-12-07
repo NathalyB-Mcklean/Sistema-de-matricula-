@@ -1,92 +1,125 @@
 <?php
-namespace App\Models;
-
-use Config\Database;
+// app/models/MateriaModel.php
 
 class MateriaModel {
-    private $db;
-    private $table = 'materias';
+    private $conn;
     
     public function __construct() {
-        $this->db = Database::getInstance();
+        // Asume que ya tienes una clase de conexión
+        require_once '../../config/conexion.php';
+        $this->conn = Conexion::getConexion();
     }
     
-    public function crear($datos) {
-        $sql = "INSERT INTO materias (nombre, descripcion, costo, docente, id_carrera) 
-                VALUES (?, ?, ?, ?, ?)";
-        return $this->db->insert($sql, [
-            $datos['nombre'],
-            $datos['descripcion'] ?? '',
-            $datos['costo'] ?? 0,
-            $datos['docente'],  // Nombre del docente como string
-            $datos['id_carrera']
-        ]);
-    }
-    
-    public function listar($idCarrera = null) {
-        $sql = "SELECT m.*, c.nombre as carrera 
-                FROM materias m 
-                LEFT JOIN carreras c ON m.id_carrera = c.id_carrera 
-                WHERE 1=1";
-        $params = [];
+    // Obtener todas las materias, opcionalmente filtradas por carrera
+    public function getAll($id_carrera = null) {
+        $sql = "SELECT m.*, c.nombre as carrera_nombre, 
+                       CONCAT(d.nombre, ' ', d.apellido) as docente_nombre
+                FROM materias m
+                LEFT JOIN carreras c ON m.id_carrera = c.id_carrera
+                LEFT JOIN docentes d ON m.id_docente = d.id_docente";
         
-        if ($idCarrera) {
-            $sql .= " AND m.id_carrera = ?";
-            $params[] = $idCarrera;
+        if ($id_carrera) {
+            $sql .= " WHERE m.id_carrera = ?";
         }
         
-        $sql .= " ORDER BY m.nombre";
-        return $this->db->fetchAll($sql, $params);
+        $sql .= " ORDER BY m.nombre ASC";
+        
+        $stmt = $this->conn->prepare($sql);
+        if ($id_carrera) {
+            $stmt->bind_param("i", $id_carrera);
+        }
+        $stmt->execute();
+        return $stmt->get_result();
     }
     
-    public function buscarPorId($id) {
-        $sql = "SELECT m.*, c.nombre as carrera 
-                FROM materias m 
-                LEFT JOIN carreras c ON m.id_carrera = c.id_carrera 
+    // Obtener una materia por ID
+    public function getById($id) {
+        $sql = "SELECT m.*, c.nombre as carrera_nombre, 
+                       CONCAT(d.nombre, ' ', d.apellido) as docente_nombre
+                FROM materias m
+                LEFT JOIN carreras c ON m.id_carrera = c.id_carrera
+                LEFT JOIN docentes d ON m.id_docente = d.id_docente
                 WHERE m.id_materia = ?";
-        return $this->db->fetchOne($sql, [$id]);
+        
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_assoc();
     }
     
-    public function actualizar($id, $datos) {
+    // Crear una nueva materia
+    public function create($data) {
+        $sql = "INSERT INTO materias (codigo, nombre, descripcion, costo, id_carrera, id_docente) 
+                VALUES (?, ?, ?, ?, ?, ?)";
+        
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bind_param("sssdii", 
+            $data['codigo'], 
+            $data['nombre'], 
+            $data['descripcion'], 
+            $data['costo'], 
+            $data['id_carrera'], 
+            $data['id_docente']
+        );
+        
+        return $stmt->execute();
+    }
+    
+    // Actualizar una materia
+    public function update($id, $data) {
         $sql = "UPDATE materias SET 
+                codigo = ?, 
                 nombre = ?, 
                 descripcion = ?, 
                 costo = ?, 
-                docente = ?, 
-                id_carrera = ? 
+                id_carrera = ?, 
+                id_docente = ? 
                 WHERE id_materia = ?";
         
-        return $this->db->query($sql, [
-            $datos['nombre'],
-            $datos['descripcion'] ?? '',
-            $datos['costo'] ?? 0,
-            $datos['docente'],  // Solo nombre, no ID
-            $datos['id_carrera'],
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bind_param("sssdiii", 
+            $data['codigo'], 
+            $data['nombre'], 
+            $data['descripcion'], 
+            $data['costo'], 
+            $data['id_carrera'], 
+            $data['id_docente'], 
             $id
-        ]);
+        );
+        
+        return $stmt->execute();
     }
     
-    public function eliminar($id) {
-        // Verificar si tiene matrículas
-        $sqlCheck = "SELECT COUNT(*) as count FROM grupos_horarios_materia WHERE id_materia = ?";
-        $result = $this->db->fetchOne($sqlCheck, [$id]);
-        
-        if ($result['count'] > 0) {
-            throw new \Exception("No se puede eliminar, la materia tiene grupos asignados");
-        }
-        
+    // Eliminar una materia
+    public function delete($id) {
         $sql = "DELETE FROM materias WHERE id_materia = ?";
-        return $this->db->query($sql, [$id]);
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bind_param("i", $id);
+        return $stmt->execute();
     }
     
-    // Buscar materias por docente (nombre)
-    public function buscarPorDocente($nombreDocente) {
-        $sql = "SELECT m.*, c.nombre as carrera 
-                FROM materias m 
-                LEFT JOIN carreras c ON m.id_carrera = c.id_carrera 
-                WHERE m.docente LIKE ? 
-                ORDER BY m.nombre";
-        return $this->db->fetchAll($sql, ["%$nombreDocente%"]);
+    // Obtener carreras para dropdown
+    public function getCarreras() {
+        $sql = "SELECT id_carrera, nombre, codigo FROM carreras WHERE estado = 'activa' ORDER BY nombre";
+        $result = $this->conn->query($sql);
+        return $result;
+    }
+    
+    // Obtener docentes para dropdown
+    public function getDocentes() {
+        $sql = "SELECT id_docente, nombre, apellido FROM docentes WHERE estado = 'activo' ORDER BY apellido, nombre";
+        $result = $this->conn->query($sql);
+        return $result;
+    }
+    
+    // Obtener información de una carrera por ID
+    public function getCarreraById($id_carrera) {
+        $sql = "SELECT * FROM carreras WHERE id_carrera = ?";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bind_param("i", $id_carrera);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_assoc();
     }
 }
-?>
