@@ -225,17 +225,17 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
                     </div>
                 </div>
                 
-                <!-- Tabla -->
+                <!-- Tabla CORREGIDA -->
                 <div class="table-container">
                     <table class="periodos-table" id="periodosTable">
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Período</th>
-                                <th>Fechas</th>
-                                <th>Duración</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
+                                <th>PERÍODO</th>
+                                <th>FECHAS</th>
+                                <th>DURACIÓN</th>
+                                <th>ESTADO</th>
+                                <th>ACCIONES</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -270,11 +270,11 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
                                             <strong><?php echo htmlspecialchars($periodo['nombre']); ?></strong>
                                             <div class="periodo-info">
                                                 <div class="info-item">
-                                                    <span class="info-label">Año</span>
+                                                    <span class="info-label">AÑO</span>
                                                     <span class="info-value"><?php echo $periodo['año']; ?></span>
                                                 </div>
                                                 <div class="info-item">
-                                                    <span class="info-label">Semestre</span>
+                                                    <span class="info-label">SEMESTRE</span>
                                                     <span class="badge-semestre">
                                                         <?php 
                                                         switch($periodo['semestre']) {
@@ -292,11 +292,11 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
                                     <td>
                                         <div class="fecha-cell">
                                             <div class="info-item">
-                                                <span class="info-label">Inicio</span>
+                                                <span class="info-label">INICIO</span>
                                                 <span class="fecha-label"><?php echo date('d/m/Y', strtotime($periodo['fecha_inicio'])); ?></span>
                                             </div>
                                             <div class="info-item">
-                                                <span class="info-label">Fin</span>
+                                                <span class="info-label">FIN</span>
                                                 <span class="fecha-label"><?php echo date('d/m/Y', strtotime($periodo['fecha_fin'])); ?></span>
                                             </div>
                                         </div>
@@ -329,7 +329,9 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
                                     </td>
                                     <td>
                                         <span class="badge <?php echo $clase_estado; ?>">
-                                            <?php echo ucfirst($periodo['estado']); ?>
+                                            <?php 
+                                            echo strtoupper($periodo['estado']);
+                                            ?>
                                         </span>
                                         <div style="margin-top: 5px; font-size: 12px; color: #666;">
                                             <i class="bi bi-clock"></i> <?php echo date('d/m/Y H:i', strtotime($periodo['fecha_registro'])); ?>

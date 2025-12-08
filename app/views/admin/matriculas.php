@@ -255,7 +255,6 @@ if ($params) {
 $total_matriculas = $matriculas->num_rows;
 
 // Obtener información de la carrera si se especifica
-// Obtener información de la carrera si se especifica
 $id_carrera = null;
 $carrera_info = null;
 
@@ -322,582 +321,171 @@ $periodos_activos = $conexion->query("SELECT * FROM periodos_academicos WHERE es
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Matrículas - Sistema UTP</title>
+    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <!-- CSS del dashboard -->
+    <link rel="stylesheet" href="http://localhost/Sistema-de-matricula-/app/public/assets/css/dashboardadmin.css">
+    <!-- CSS específico para matrículas -->
+    <link rel="stylesheet" href="http://localhost/Sistema-de-matricula-/app/public/assets/css/matriculas.css">
     <style>
-        /* ESTILOS COMPLETOS INCLUIDOS - Mismos estilos que antes */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: #f5f5f5;
-            color: #333;
-        }
-        
-        .dashboard-container {
-            display: flex;
-            min-height: 100vh;
-        }
-        
-        .sidebar {
-            width: 250px;
-            background: #1e3c72;
-            color: white;
-            padding: 20px 0;
-        }
-        
-        .logo {
-            padding: 0 20px 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 20px;
-        }
-        
-        .logo h2 {
-            margin: 0;
-            font-size: 1.5rem;
-        }
-        
-        .logo small {
-            font-size: 0.8rem;
-            opacity: 0.8;
-        }
-        
-        .user-info {
-            padding: 0 20px 20px;
-            text-align: center;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 20px;
-        }
-        
-        .avatar {
-            width: 60px;
-            height: 60px;
-            background: #38a169;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin: 0 auto 10px;
-        }
-        
-        .user-info h3 {
-            font-size: 1rem;
-            margin: 5px 0;
-        }
-        
-        .user-info p {
-            font-size: 0.8rem;
-            opacity: 0.8;
-            margin: 0;
-        }
-        
-        .nav-menu {
-            padding: 0 10px;
-        }
-        
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 12px 15px;
-            color: rgba(255,255,255,0.8);
-            text-decoration: none;
-            border-radius: 8px;
-            margin-bottom: 5px;
-            transition: all 0.3s;
-        }
-        
-        .nav-item:hover {
-            background: rgba(255,255,255,0.1);
-            color: white;
-        }
-        
-        .nav-item.active {
-            background: rgba(255,255,255,0.2);
-            color: white;
-        }
-        
-        .logout {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .main-content {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-        }
-        
-        .matriculas-container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        
-        .breadcrumb {
-            margin-bottom: 25px;
-            font-size: 14px;
-            color: #666;
-        }
-        
-        .breadcrumb a {
-            color: #1e3c72;
-            text-decoration: none;
-        }
-        
-        .breadcrumb a:hover {
-            text-decoration: underline;
-        }
-        
-        .header-actions {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        
-        .header-actions h1 {
-            font-size: 1.8rem;
-            color: #1e3c72;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .btn-action {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            background: #6c757d;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            text-decoration: none;
-            cursor: pointer;
-            font-weight: 500;
-            font-size: 14px;
-            transition: background 0.3s;
-        }
-        
-        .btn-action:hover {
-            background: #5a6268;
-            color: white;
-        }
-        
-        .btn-green {
-            background: #28a745;
-        }
-        
-        .btn-green:hover {
-            background: #218838;
-        }
-        
-        .btn-purple {
-            background: #6f42c1;
-        }
-        
-        .btn-purple:hover {
-            background: #5a3792;
-        }
-        
-        .btn-blue {
-            background: #007bff;
-        }
-        
-        .btn-blue:hover {
-            background: #0056b3;
-        }
-        
-        .btn-warning {
-            background: #ffc107;
-            color: #212529;
-        }
-        
-        .btn-warning:hover {
-            background: #e0a800;
-        }
-        
-        .btn-danger {
-            background: #dc3545;
-        }
-        
-        .btn-danger:hover {
-            background: #c82333;
-        }
-        
-        .btn-sm {
-            padding: 5px 10px;
-            font-size: 12px;
-        }
-        
-        .alert {
-            padding: 12px 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .alert-danger {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .alert-warning {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeaa7;
-        }
-        
-        .alert-close {
-            background: none;
-            border: none;
-            font-size: 20px;
-            cursor: pointer;
-            color: inherit;
-        }
-        
-        .stats-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            text-align: center;
-            border-top: 4px solid #1e3c72;
-        }
-        
-        .stat-card i {
-            font-size: 2rem;
-            margin-bottom: 10px;
-        }
-        
-        .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #1e3c72;
-            margin: 10px 0;
-        }
-        
-        .stat-label {
-            color: #666;
-            font-size: 0.9rem;
-        }
-        
-        .filters {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 25px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-        
-        .filter-form {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-        
-        .filter-form select,
-        .filter-form input {
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
-            min-width: 180px;
-        }
-        
-        .filter-form button {
-            padding: 10px 15px;
-            background: #6c757d;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .table-container {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            overflow: hidden;
-            margin-bottom: 25px;
-        }
-        
+        /* ESTILOS ADICIONALES PARA CORREGIR BOTONES EN TABLA - ARREGLADOS */
         .matriculas-table {
-            width: 100%;
-            border-collapse: collapse;
+            table-layout: fixed;
         }
         
-        .matriculas-table th {
-            background: #f8f9fa;
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-            color: #495057;
-            border-bottom: 2px solid #dee2e6;
+        .matriculas-table th:nth-child(1) { width: 60px; } /* ID */
+        .matriculas-table th:nth-child(2) { width: 180px; } /* Estudiante */
+        .matriculas-table th:nth-child(3) { width: 220px; } /* Materia y Carrera */
+        .matriculas-table th:nth-child(4) { width: 180px; } /* Grupo - Horario */
+        .matriculas-table th:nth-child(5) { width: 150px; } /* Docente */
+        .matriculas-table th:nth-child(6) { width: 100px; } /* Periodo */
+        .matriculas-table th:nth-child(7) { width: 90px; } /* Costo */
+        .matriculas-table th:nth-child(8) { width: 140px; } /* Fecha */
+        .matriculas-table th:nth-child(9) { width: 160px; } /* Acciones - AUMENTADO */
+        
+        /* Contenedor para botones - MEJORADO */
+        .acciones-tabla {
+            display: flex !important;
+            gap: 8px !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-wrap: nowrap !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            min-width: 150px !important;
         }
         
-        .matriculas-table td {
-            padding: 15px;
-            border-bottom: 1px solid #dee2e6;
-            vertical-align: top;
+        /* Botones dentro de la tabla - MEJORADOS */
+        .btn-tabla {
+            padding: 6px 12px !important;
+            border: none !important;
+            border-radius: 5px !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            transition: all 0.2s !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            white-space: nowrap !important;
+            min-width: 68px !important;
+            height: 32px !important;
+            text-decoration: none !important;
+            flex-shrink: 0 !important;
         }
         
-        .matriculas-table tr:hover {
-            background: #f8f9fa;
+        .btn-tabla i {
+            margin-right: 4px !important;
+            font-size: 11px !important;
         }
         
-        .horario-cell {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
+        .btn-editar {
+            background-color: #e7f3ff !important;
+            color: #0d6efd !important;
+            border: 1px solid #b6d4fe !important;
         }
         
-        .horario-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.9rem;
+        .btn-editar:hover {
+            background-color: #cfe2ff !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 4px rgba(13, 110, 253, 0.2) !important;
         }
         
-        .badge-aula {
-            background: #e3f2fd;
-            color: #1976d2;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.8rem;
+        .btn-eliminar {
+            background-color: #f8d7da !important;
+            color: #dc3545 !important;
+            border: 1px solid #f5c2c7 !important;
         }
         
-        .badge-horario {
-            background: #f3e5f5;
-            color: #7b1fa2;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.8rem;
+        .btn-eliminar:hover {
+            background-color: #f5c6cb !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2) !important;
         }
         
-        .dia-semana {
-            font-weight: 500;
-            min-width: 60px;
+        /* Asegurar que la celda de acciones tenga suficiente espacio */
+        .matriculas-table td:last-child {
+            padding: 8px 5px !important;
+            overflow: visible !important;
+            position: relative !important;
         }
         
-        .empty-state {
-            text-align: center;
-            padding: 50px 20px;
-            color: #6c757d;
+        /* Responsive para botones - MEJORADO */
+        @media (max-width: 1400px) {
+            .matriculas-table th:nth-child(2) { width: 160px; } /* Estudiante */
+            .matriculas-table th:nth-child(3) { width: 200px; } /* Materia y Carrera */
+            .matriculas-table th:nth-child(4) { width: 160px; } /* Grupo - Horario */
+            .matriculas-table th:nth-child(5) { width: 130px; } /* Docente */
+            .matriculas-table th:last-child { width: 150px; } /* Acciones */
         }
         
-        .empty-state i {
-            font-size: 4rem;
-            color: #dee2e6;
-            margin-bottom: 20px;
-        }
-        
-        .empty-state h3 {
-            color: #495057;
-            margin-bottom: 10px;
-            font-size: 1.5rem;
-        }
-        
-        .empty-state p {
-            margin-bottom: 25px;
-            max-width: 500px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        
-        .summary-box {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 6px;
-            color: #495057;
-            font-size: 0.9rem;
-        }
-        
-        /* MODAL */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .modal-content {
-            background: white;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 90vh;
-            overflow-y: auto;
-            animation: modalAppear 0.3s;
-        }
-        
-        @keyframes modalAppear {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .modal-header {
-            padding: 20px;
-            border-bottom: 1px solid #dee2e6;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .modal-header h3 {
-            margin: 0;
-            color: #1e3c72;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #666;
-        }
-        
-        .modal-body {
-            padding: 20px;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: #333;
-        }
-        
-        .form-group select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-        
-        .grupo-option {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .grupo-option:hover {
-            border-color: #007bff;
-            background: #f8f9fa;
-        }
-        
-        .grupo-option.selected {
-            border-color: #28a745;
-            background: #f0fff4;
-        }
-        
-        .grupo-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .grupo-codigo {
-            font-weight: 500;
-            color: #1e3c72;
-        }
-        
-        .grupo-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            font-size: 0.9rem;
-            color: #666;
-        }
-        
-        .grupo-details div {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .form-actions {
-            padding: 20px;
-            border-top: 1px solid #dee2e6;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
+        @media (max-width: 1200px) {
+            .matriculas-table th:nth-child(9) { width: 140px; } /* Acciones */
+            .acciones-tabla { min-width: 130px !important; }
+            .btn-tabla { min-width: 60px !important; padding: 5px 10px !important; }
         }
         
         @media (max-width: 768px) {
-            .dashboard-container {
-                flex-direction: column;
+            .matriculas-table th:last-child,
+            .matriculas-table td:last-child {
+                width: 120px !important;
+                min-width: 120px !important;
             }
             
-            .sidebar {
-                width: 100%;
-                position: static;
+            .acciones-tabla {
+                flex-direction: column !important;
+                gap: 5px !important;
+                min-width: 100px !important;
             }
             
-            .header-actions {
-                flex-direction: column;
-                align-items: flex-start;
+            .btn-tabla {
+                width: 100% !important;
+                min-width: 85px !important;
+                padding: 5px 8px !important;
             }
-            
-            .filter-form {
-                flex-direction: column;
-            }
-            
-            .filter-form select,
-            .filter-form input {
-                min-width: 100%;
-            }
+        }
+        
+        /* Estilos para grupos en edición */
+        .grupo-option-editar {
+            border: 2px solid #e0e0e0 !important;
+            border-radius: 10px !important;
+            padding: 20px !important;
+            cursor: pointer !important;
+            transition: all 0.3s !important;
+            background: white !important;
+            position: relative !important;
+            overflow: hidden !important;
+        }
+        
+        .grupo-option-editar:hover {
+            border-color: #6B2C91 !important;
+            background: #f9f5ff !important;
+            transform: translateY(-3px) !important;
+            box-shadow: 0 6px 15px rgba(107, 44, 145, 0.1) !important;
+        }
+        
+        .grupo-option-editar.selected {
+            border-color: #2d8659 !important;
+            background: #f0fff4 !important;
+            box-shadow: 0 0 0 3px rgba(45, 134, 89, 0.15) !important;
+        }
+        
+        .grupo-option-editar.selected::before {
+            content: '✓' !important;
+            position: absolute !important;
+            top: 10px !important;
+            right: 10px !important;
+            width: 25px !important;
+            height: 25px !important;
+            background: #2d8659 !important;
+            color: white !important;
+            border-radius: 50% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-weight: bold !important;
+            font-size: 14px !important;
         }
     </style>
 </head>
@@ -1030,67 +618,178 @@ $periodos_activos = $conexion->query("SELECT * FROM periodos_academicos WHERE es
                 <?php endif; ?>
                 
                 <?php if ($accion == 'editar'): ?>
-                    <!-- FORMULARIO DE EDICIÓN -->
-                    <div class="card" style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 25px;">
-                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #f0f0f0;">
-                            <h2 style="margin: 0; color: #333; display: flex; align-items: center; gap: 10px;">
-                                <i class="bi bi-pencil"></i> Editar Matrícula #<?php echo $matricula_editar['id_matricula'] ?? ''; ?>
-                            </h2>
-                            <a href="matriculas.php<?php echo $id_estudiante ? '?id_estudiante='.$id_estudiante : ''; ?>" class="btn-action">Cancelar</a>
+                    <!-- FORMULARIO DE EDICIÓN - VERSIÓN CORREGIDA -->
+                    <div style="background: white; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 30px; overflow: hidden;">
+                        <!-- Header del formulario -->
+                        <div style="background: linear-gradient(135deg, #6B2C91 0%, #4a1e6e 100%); color: white; padding: 20px 30px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
+                                        <i class="bi bi-pencil-square"></i> Editar Matrícula #<?php echo $matricula_editar['id_matricula'] ?? ''; ?>
+                                    </h2>
+                                    <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">
+                                        Modifica los datos de la matrícula seleccionada
+                                    </p>
+                                </div>
+                                <a href="matriculas.php<?php echo $id_estudiante ? '?id_estudiante='.$id_estudiante : ''; ?>" 
+                                   class="btn-action" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); text-decoration: none;">
+                                    <i class="bi bi-x-circle"></i> Cancelar
+                                </a>
+                            </div>
                         </div>
                         
-                        <form method="POST" action="">
+                        <form method="POST" action="" style="padding: 30px;">
                             <input type="hidden" name="id_matricula" value="<?php echo $matricula_editar['id_matricula'] ?? ''; ?>">
                             
-                            <div class="form-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 20px 0;">
-                                <div class="form-group">
-                                    <label>Estudiante *</label>
-                                    <select name="estudiante" required onchange="cargarMateriasDisponibles()">
-                                        <option value="">Seleccionar estudiante...</option>
-                                        <?php
-                                        $estudiantes_activos->data_seek(0);
-                                        while($est = $estudiantes_activos->fetch_assoc()):
-                                        ?>
-                                        <option value="<?php echo $est['id_estudiante']; ?>"
-                                            <?php echo ($matricula_editar['id_estudiante'] ?? 0) == $est['id_estudiante'] ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($est['nombre'] . ' - ' . $est['cedula'] . ' (' . ($est['carrera'] ?? 'Sin carrera') . ')'); ?>
-                                        </option>
-                                        <?php endwhile; ?>
-                                    </select>
+                            <!-- Información actual -->
+                            <?php if ($matricula_editar): ?>
+                            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #6B2C91;">
+                                <h4 style="margin: 0 0 15px 0; color: #6B2C91; display: flex; align-items: center; gap: 8px;">
+                                    <i class="bi bi-info-circle"></i> Matrícula Actual
+                                </h4>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                                    <div>
+                                        <span style="font-weight: 600; color: #666; font-size: 13px;">Estudiante:</span>
+                                        <div style="color: #333; font-weight: 500;">
+                                            <?php 
+                                            // Obtener nombre del estudiante actual
+                                            $stmt_est = $conexion->prepare("SELECT CONCAT(u.nombre, ' ', u.apellido) as nombre_completo, e.cedula 
+                                                                           FROM estudiantes e 
+                                                                           JOIN usuario u ON e.id_usuario = u.id_usuario 
+                                                                           WHERE e.id_estudiante = ?");
+                                            $stmt_est->bind_param("i", $matricula_editar['id_estudiante']);
+                                            $stmt_est->execute();
+                                            $est_actual = $stmt_est->get_result()->fetch_assoc();
+                                            echo htmlspecialchars($est_actual['nombre_completo'] ?? '') . ' - ' . htmlspecialchars($est_actual['cedula'] ?? '');
+                                            ?>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span style="font-weight: 600; color: #666; font-size: 13px;">Período:</span>
+                                        <div style="color: #333; font-weight: 500;">
+                                            <?php echo $matricula_editar['periodo_codigo'] ?? ''; ?>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span style="font-weight: 600; color: #666; font-size: 13px;">Fecha:</span>
+                                        <div style="color: #333; font-weight: 500;">
+                                            <?php echo date('d/m/Y H:i', strtotime($matricula_editar['fecha'] ?? '')); ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <!-- Campos del formulario -->
+                            <div style="margin-bottom: 30px;">
+                                <h3 style="color: #6B2C91; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #f0f0f0;">
+                                    <i class="bi bi-gear"></i> Modificar Datos
+                                </h3>
+                                
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; margin-bottom: 25px;">
+                                    <!-- Estudiante -->
+                                    <div>
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 14px;">
+                                            <i class="bi bi-person"></i> Estudiante *
+                                        </label>
+                                        <select name="estudiante" required onchange="cargarGruposParaEditar()" 
+                                                style="width: 100%; padding: 12px 15px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; background: white; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#6B2C91'; this.style.boxShadow='0 0 0 3px rgba(107, 44, 145, 0.1)';"
+                                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none';">
+                                            <option value="">Seleccionar estudiante...</option>
+                                            <?php
+                                            $estudiantes_activos->data_seek(0);
+                                            while($est = $estudiantes_activos->fetch_assoc()):
+                                            ?>
+                                            <option value="<?php echo $est['id_estudiante']; ?>"
+                                                <?php echo ($matricula_editar['id_estudiante'] ?? 0) == $est['id_estudiante'] ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($est['nombre'] . ' - ' . $est['cedula'] . ' (' . ($est['carrera'] ?? 'Sin carrera') . ')'); ?>
+                                            </option>
+                                            <?php endwhile; ?>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Período Académico -->
+                                    <div>
+                                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 14px;">
+                                            <i class="bi bi-calendar"></i> Período Académico *
+                                        </label>
+                                        <select name="periodo" required onchange="cargarGruposParaEditar()" 
+                                                style="width: 100%; padding: 12px 15px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; background: white; transition: all 0.3s;"
+                                                onfocus="this.style.borderColor='#6B2C91'; this.style.boxShadow='0 0 0 3px rgba(107, 44, 145, 0.1)';"
+                                                onblur="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none';">
+                                            <option value="">Seleccionar período...</option>
+                                            <?php
+                                            $periodos_activos->data_seek(0);
+                                            while($periodo = $periodos_activos->fetch_assoc()):
+                                            ?>
+                                            <option value="<?php echo $periodo['id_periodo']; ?>"
+                                                <?php echo ($matricula_editar['periodo_id'] ?? 0) == $periodo['id_periodo'] ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($periodo['nombre'] . ' (' . $periodo['año'] . '-' . $periodo['semestre'] . ')'); ?>
+                                            </option>
+                                            <?php endwhile; ?>
+                                        </select>
+                                    </div>
                                 </div>
                                 
-                                <div class="form-group">
-                                    <label>Período Académico *</label>
-                                    <select name="periodo" required onchange="cargarMateriasDisponibles()">
-                                        <option value="">Seleccionar período...</option>
-                                        <?php
-                                        $periodos_activos->data_seek(0);
-                                        while($periodo = $periodos_activos->fetch_assoc()):
-                                        ?>
-                                        <option value="<?php echo $periodo['id_periodo']; ?>"
-                                            <?php echo ($matricula_editar['periodo_id'] ?? 0) == $periodo['id_periodo'] ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($periodo['nombre'] . ' (' . $periodo['año'] . '-' . $periodo['semestre'] . ')'); ?>
-                                        </option>
-                                        <?php endwhile; ?>
-                                    </select>
+                                <!-- Nota informativa -->
+                                <div style="background: #e3f2fd; padding: 15px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #2196f3;">
+                                    <div style="display: flex; align-items: flex-start; gap: 10px;">
+                                        <i class="bi bi-info-circle" style="color: #2196f3; font-size: 16px; margin-top: 2px;"></i>
+                                        <div style="font-size: 13px; color: #0d47a1;">
+                                            <strong>Nota:</strong> Al cambiar el estudiante o período, se mostrarán los grupos disponibles para la nueva selección.
+                                            El grupo actualmente seleccionado es: <strong>ID <?php echo $matricula_editar['id_ghm'] ?? 'N/A'; ?></strong>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
-                            <div id="grupos-container-editar" style="display: <?php echo $matricula_editar ? 'block' : 'none'; ?>;">
-                                <h4 style="margin-bottom: 15px; color: #1e3c72;">Seleccionar Grupo Disponible</h4>
-                                <div id="grupos-list-editar">
+                            <!-- Contenedor de grupos disponibles -->
+                            <div id="grupos-container-editar" style="display: <?php echo $matricula_editar ? 'block' : 'none'; ?>; margin-top: 30px;">
+                                <h3 style="color: #6B2C91; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #f0f0f0; display: flex; align-items: center; gap: 10px;">
+                                    <i class="bi bi-layers"></i> Seleccionar Grupo Disponible
+                                </h3>
+                                
+                                <div id="grupos-list-editar" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; max-height: 500px; overflow-y: auto; padding: 10px;">
                                     <!-- Los grupos se cargarán aquí dinámicamente -->
+                                    <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
+                                        <div style="display: inline-block; padding: 20px;">
+                                            <i class="bi bi-hourglass" style="font-size: 32px; color: #6B2C91;"></i>
+                                            <p style="margin-top: 15px; color: #666;">Selecciona un estudiante y período para ver los grupos disponibles</p>
+                                        </div>
+                                    </div>
                                 </div>
+                                
                                 <input type="hidden" id="grupo_seleccionado_editar" name="grupo" 
                                        value="<?php echo $matricula_editar['id_ghm'] ?? ''; ?>">
+                                
+                                <div style="margin-top: 15px; font-size: 13px; color: #666; display: flex; align-items: center; gap: 8px; padding: 12px 15px; background: #f8f9fa; border-radius: 6px;">
+                                    <i class="bi bi-info-circle"></i>
+                                    <span>Haz clic en un grupo para seleccionarlo. El grupo seleccionado aparecerá con borde verde.</span>
+                                </div>
                             </div>
                             
-                            <div style="margin-top: 20px; display: flex; gap: 10px;">
-                                <button type="submit" class="btn-action btn-green" id="btnGuardarEditar">
+                            <!-- Mensaje cuando no hay grupos -->
+                            <div id="sin-grupos-editar" style="display: none; text-align: center; padding: 40px 20px; background: #f8f9fa; border-radius: 8px; margin-top: 20px; border: 2px dashed #dee2e6;">
+                                <i class="bi bi-exclamation-circle" style="font-size: 48px; color: #6c757d; margin-bottom: 15px;"></i>
+                                <h4 style="color: #495057; margin-bottom: 10px;">No hay grupos disponibles</h4>
+                                <p style="color: #6c757d; margin-bottom: 0; max-width: 500px; margin-left: auto; margin-right: auto;">
+                                    No hay grupos disponibles para el estudiante seleccionado en este período. 
+                                    Por favor, verifica que el estudiante cumpla con los prerrequisitos o intenta con otro período.
+                                </p>
+                            </div>
+                            
+                            <!-- Botones de acción -->
+                            <div style="margin-top: 40px; display: flex; gap: 15px; padding-top: 25px; border-top: 2px solid #f0f0f0;">
+                                <button type="submit" class="btn-action btn-green" id="btnGuardarEditar" 
+                                        style="padding: 14px 30px; font-size: 15px; flex: 1; max-width: 250px;"
+                                        <?php echo $matricula_editar['id_ghm'] ? '' : 'disabled'; ?>>
                                     <i class="bi bi-save"></i> Guardar Cambios
                                 </button>
                                 <a href="matriculas.php<?php echo $id_estudiante ? '?id_estudiante='.$id_estudiante : ''; ?>" 
-                                   class="btn-action">Cancelar</a>
+                                   class="btn-action" style="padding: 14px 30px; font-size: 15px; flex: 1; max-width: 150px; background: #6c757d; text-decoration: none;">
+                                    <i class="bi bi-x-circle"></i> Cancelar
+                                </a>
                             </div>
                         </form>
                     </div>
@@ -1111,16 +810,38 @@ $periodos_activos = $conexion->query("SELECT * FROM periodos_academicos WHERE es
                             const periodoId = document.querySelector('select[name="periodo"]').value;
                             const gruposList = document.getElementById('grupos-list-editar');
                             const gruposContainer = document.getElementById('grupos-container-editar');
+                            const sinGrupos = document.getElementById('sin-grupos-editar');
                             const grupoSeleccionado = document.getElementById('grupo_seleccionado_editar').value;
+                            const btnGuardar = document.getElementById('btnGuardarEditar');
                             
                             if (!estudianteId || !periodoId) {
-                                gruposContainer.style.display = 'none';
+                                gruposContainer.style.display = 'block';
+                                sinGrupos.style.display = 'none';
+                                gruposList.innerHTML = `
+                                    <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
+                                        <div style="display: inline-block; padding: 20px;">
+                                            <i class="bi bi-hourglass" style="font-size: 32px; color: #6B2C91;"></i>
+                                            <p style="margin-top: 15px; color: #666;">Selecciona un estudiante y período para ver los grupos disponibles</p>
+                                        </div>
+                                    </div>
+                                `;
                                 return;
                             }
                             
                             // Mostrar cargando
-                            gruposList.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="bi bi-hourglass"></i> Cargando grupos disponibles...</div>';
+                            gruposList.innerHTML = `
+                                <div style="grid-column: 1 / -1; text-align: center; padding: 50px 20px;">
+                                    <div style="display: inline-block; padding: 30px; background: #f8f9fa; border-radius: 10px;">
+                                        <div style="width: 50px; height: 50px; border: 3px solid #f3f3f3; border-top: 3px solid #6B2C91; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+                                        <style>@keyframes spin {0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); }}</style>
+                                        <p style="margin-top: 15px; color: #666; font-weight: 500;">Buscando grupos disponibles...</p>
+                                    </div>
+                                </div>
+                            `;
+                            
                             gruposContainer.style.display = 'block';
+                            sinGrupos.style.display = 'none';
+                            btnGuardar.disabled = true;
                             
                             // Hacer petición AJAX
                             fetch(`obtener_grupos_disponibles.php?estudiante=${estudianteId}&periodo=${periodoId}`)
@@ -1129,48 +850,109 @@ $periodos_activos = $conexion->query("SELECT * FROM periodos_academicos WHERE es
                                     gruposList.innerHTML = '';
                                     
                                     if (data.error) {
-                                        gruposList.innerHTML = `<div class="alert" style="background: #fed7d7; color: #742a2a;">${data.error}</div>`;
+                                        sinGrupos.innerHTML = `
+                                            <i class="bi bi-exclamation-triangle" style="font-size: 48px; color: #dc3545;"></i>
+                                            <h4 style="color: #dc3545; margin-bottom: 10px;">Error al cargar grupos</h4>
+                                            <p style="color: #721c24;">${data.error}</p>
+                                            <div style="margin-top: 20px;">
+                                                <button onclick="cargarGruposParaEditar()" class="btn-action" style="background: #6c757d; padding: 10px 20px;">
+                                                    <i class="bi bi-arrow-clockwise"></i> Reintentar
+                                                </button>
+                                            </div>
+                                        `;
+                                        sinGrupos.style.display = 'block';
+                                        gruposContainer.style.display = 'none';
                                         return;
                                     }
                                     
                                     if (data.length === 0) {
-                                        gruposList.innerHTML = '<div class="alert alert-warning">No hay grupos disponibles</div>';
+                                        sinGrupos.style.display = 'block';
+                                        gruposContainer.style.display = 'none';
                                         return;
                                     }
                                     
                                     data.forEach(grupo => {
                                         const grupoDiv = document.createElement('div');
-                                        grupoDiv.className = 'grupo-option';
+                                        grupoDiv.className = 'grupo-option-editar';
                                         if (grupo.id_ghm == grupoSeleccionado) {
                                             grupoDiv.classList.add('selected');
+                                            btnGuardar.disabled = false;
                                         }
                                         
+                                        // Formatear el día
+                                        const diasMap = {
+                                            'Monday': 'Lunes',
+                                            'Tuesday': 'Martes',
+                                            'Wednesday': 'Miércoles',
+                                            'Thursday': 'Jueves',
+                                            'Friday': 'Viernes',
+                                            'Saturday': 'Sábado',
+                                            'Sunday': 'Domingo'
+                                        };
+                                        const diaFormateado = diasMap[grupo.dia] || grupo.dia;
+                                        
                                         grupoDiv.innerHTML = `
-                                            <div class="grupo-header">
-                                                <div class="grupo-codigo">${grupo.materia_codigo} - ${grupo.materia_nombre}</div>
-                                                <div><strong>$${grupo.costo ? parseFloat(grupo.costo).toFixed(2) : '0.00'}</strong></div>
+                                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #f0f0f0;">
+                                                <div style="font-weight: 600; color: #333; font-size: 16px; flex: 1; line-height: 1.3;">
+                                                    ${grupo.materia_codigo} - ${grupo.materia_nombre}
+                                                </div>
+                                                <div style="font-weight: bold; color: #2d8659; font-size: 18px; background: #e8f5e9; padding: 5px 12px; border-radius: 20px; white-space: nowrap;">
+                                                    $${grupo.costo ? parseFloat(grupo.costo).toFixed(2) : '0.00'}
+                                                </div>
                                             </div>
-                                            <div class="grupo-details">
-                                                <div><i class="bi bi-person"></i> ${grupo.docente_nombre || 'Sin asignar'}</div>
-                                                <div><i class="bi bi-geo-alt"></i> ${grupo.aula || 'Sin aula asignada'}</div>
-                                                <div><i class="bi bi-calendar-week"></i> ${grupo.dia || 'Sin día'} ${grupo.hora_inicio || ''} - ${grupo.hora_fin || ''}</div>
-                                                <div><i class="bi bi-layers"></i> Grupo ${grupo.id_ghm}</div>
+                                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; font-size: 13px; color: #666;">
+                                                <div style="display: flex; align-items: center; gap: 8px;">
+                                                    <i class="bi bi-person" style="color: #6B2C91; font-size: 14px; min-width: 16px;"></i> 
+                                                    ${grupo.docente_nombre || 'Sin asignar'}
+                                                </div>
+                                                <div style="display: flex; align-items: center; gap: 8px;">
+                                                    <i class="bi bi-geo-alt" style="color: #6B2C91; font-size: 14px; min-width: 16px;"></i> 
+                                                    ${grupo.aula || 'Sin aula asignada'}
+                                                </div>
+                                                <div style="display: flex; align-items: center; gap: 8px;">
+                                                    <i class="bi bi-calendar-week" style="color: #6B2C91; font-size: 14px; min-width: 16px;"></i> 
+                                                    ${diaFormateado} ${grupo.hora_inicio || ''} - ${grupo.hora_fin || ''}
+                                                </div>
+                                                <div style="display: flex; align-items: center; gap: 8px;">
+                                                    <i class="bi bi-layers" style="color: #6B2C91; font-size: 14px; min-width: 16px;"></i> 
+                                                    Grupo ${grupo.id_ghm}
+                                                </div>
                                             </div>
                                         `;
                                         
                                         grupoDiv.onclick = () => {
                                             // Deseleccionar todos
-                                            document.querySelectorAll('#grupos-list-editar .grupo-option').forEach(g => g.classList.remove('selected'));
+                                            document.querySelectorAll('#grupos-list-editar .grupo-option-editar').forEach(g => g.classList.remove('selected'));
                                             // Seleccionar este
                                             grupoDiv.classList.add('selected');
                                             document.getElementById('grupo_seleccionado_editar').value = grupo.id_ghm;
+                                            btnGuardar.disabled = false;
+                                            
+                                            // Feedback visual
+                                            grupoDiv.style.transform = 'scale(0.98)';
+                                            setTimeout(() => {
+                                                grupoDiv.style.transform = '';
+                                            }, 150);
                                         };
                                         
                                         gruposList.appendChild(grupoDiv);
                                     });
                                 })
                                 .catch(error => {
-                                    gruposList.innerHTML = `<div class="alert" style="background: #fed7d7; color: #742a2a;">Error al cargar grupos: ${error.message}</div>`;
+                                    gruposList.innerHTML = '';
+                                    sinGrupos.innerHTML = `
+                                        <i class="bi bi-exclamation-triangle" style="font-size: 48px; color: #dc3545;"></i>
+                                        <h4 style="color: #dc3545; margin-bottom: 10px;">Error de conexión</h4>
+                                        <p style="color: #721c24;">No se pudo cargar la información. Verifica tu conexión a internet.</p>
+                                        <div style="margin-top: 20px;">
+                                            <button onclick="cargarGruposParaEditar()" class="btn-action" style="background: #6c757d; padding: 10px 20px;">
+                                                <i class="bi bi-arrow-clockwise"></i> Reintentar
+                                            </button>
+                                        </div>
+                                    `;
+                                    sinGrupos.style.display = 'block';
+                                    gruposContainer.style.display = 'none';
+                                    console.error('Error:', error);
                                 });
                         }
                         
@@ -1251,7 +1033,7 @@ $periodos_activos = $conexion->query("SELECT * FROM periodos_academicos WHERE es
                         </form>
                     </div>
                     
-                    <!-- Tabla -->
+                    <!-- Tabla - CORREGIDA -->
                     <div class="table-container">
                         <table class="matriculas-table" id="matriculasTable">
                             <thead>
@@ -1311,15 +1093,16 @@ $periodos_activos = $conexion->query("SELECT * FROM periodos_academicos WHERE es
                                             <?php echo date('d/m/Y H:i', strtotime($matricula['fecha'])); ?>
                                         </td>
                                         <td>
-                                            <div style="display: flex; gap: 5px;">
+                                            <!-- CONTENEDOR CORREGIDO PARA BOTONES - FIXED -->
+                                            <div class="acciones-tabla">
                                                 <a href="?accion=editar&id=<?php echo $matricula['id_matricula']; ?><?php echo $id_estudiante ? '&id_estudiante=' . $id_estudiante : ''; ?>" 
-                                                   class="btn-action btn-warning btn-sm" title="Editar">
-                                                    <i class="bi bi-pencil"></i>
+                                                   class="btn-tabla btn-editar" title="Editar">
+                                                    <i class="bi bi-pencil"></i> Editar
                                                 </a>
                                                 <a href="?accion=eliminar&id=<?php echo $matricula['id_matricula']; ?><?php echo $id_estudiante ? '&id_estudiante=' . $id_estudiante : ''; ?>" 
                                                    onclick="return confirm('¿Estás seguro de eliminar esta matrícula?')"
-                                                   class="btn-action btn-danger btn-sm" title="Eliminar">
-                                                    <i class="bi bi-trash"></i>
+                                                   class="btn-tabla btn-eliminar" title="Eliminar">
+                                                    <i class="bi bi-trash"></i> Borrar
                                                 </a>
                                             </div>
                                         </td>

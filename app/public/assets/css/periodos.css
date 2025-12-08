@@ -227,7 +227,7 @@
             letter-spacing: 0.5px;
         }
 
-        /* Tabla */
+        /* Tabla - CORREGIDO */
         .table-container {
             background: white;
             border-radius: 10px;
@@ -238,7 +238,8 @@
         .periodos-table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 1000px;
+            min-width: 1200px;
+            table-layout: fixed; /* Añadido */
         }
 
         .periodos-table th {
@@ -251,13 +252,26 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border-bottom: 2px solid #dee2e6;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
+
+        /* Definir anchos fijos para las columnas */
+        .periodos-table th:nth-child(1) { width: 80px; }  /* ID */
+        .periodos-table th:nth-child(2) { width: 200px; } /* PERÍODO */
+        .periodos-table th:nth-child(3) { width: 180px; } /* FECHAS */
+        .periodos-table th:nth-child(4) { width: 220px; } /* DURACIÓN */
+        .periodos-table th:nth-child(5) { width: 150px; } /* ESTADO */
+        .periodos-table th:nth-child(6) { width: 150px; } /* ACCIONES */
 
         .periodos-table td {
             padding: 15px;
             border-bottom: 1px solid #f0f0f0;
             color: #555;
             font-size: 14px;
+            vertical-align: top; /* Añadido */
+            word-wrap: break-word; /* Añadido */
         }
 
         .periodos-table tbody tr {
@@ -409,11 +423,6 @@
         .fecha-label {
             font-weight: 600;
             color: #333;
-        }
-
-        .fecha-value {
-            color: #666;
-            font-size: 13px;
         }
 
         /* Empty State */
@@ -584,6 +593,49 @@
             gap: 12px;
         }
 
+        /* Información adicional del período */
+        .periodo-info {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-label {
+            font-size: 11px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            min-width: 50px;
+        }
+
+        .info-value {
+            font-weight: 600;
+            color: #333;
+            font-size: 13px;
+        }
+
+        /* Indicador de período actual */
+        .periodo-actual {
+            position: relative;
+        }
+
+        .periodo-actual::before {
+            content: "★";
+            color: #FFD700;
+            position: absolute;
+            left: -20px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16px;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .dashboard-container {
@@ -617,6 +669,14 @@
                 min-width: 800px;
             }
             
+            /* Ajustar anchos en móviles */
+            .periodos-table th:nth-child(1) { width: 60px; }
+            .periodos-table th:nth-child(2) { width: 150px; }
+            .periodos-table th:nth-child(3) { width: 140px; }
+            .periodos-table th:nth-child(4) { width: 180px; }
+            .periodos-table th:nth-child(5) { width: 120px; }
+            .periodos-table th:nth-child(6) { width: 130px; }
+            
             .form-group-row {
                 grid-template-columns: 1fr;
             }
@@ -625,46 +685,4 @@
                 width: 95%;
                 margin: 10% auto;
             }
-        }
-
-        /* Información adicional del período */
-        .periodo-info {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-            margin-top: 5px;
-        }
-
-        .info-item {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .info-label {
-            font-size: 11px;
-            color: #999;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .info-value {
-            font-weight: 600;
-            color: #333;
-            font-size: 13px;
-        }
-
-        /* Indicador de período actual */
-        .periodo-actual {
-            position: relative;
-        }
-
-        .periodo-actual::before {
-            content: "★";
-            color: #FFD700;
-            position: absolute;
-            left: -20px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 16px;
         }
