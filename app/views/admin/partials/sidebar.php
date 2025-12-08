@@ -90,7 +90,7 @@ if (!function_exists('isActive')) {
             <i class="bi bi-speedometer2"></i> Dashboard
         </a>
         
-        <a href="estudiantes/index.php" 
+        <a href="estudiantes.php" 
            class="nav-item <?php echo ($current_dir == 'estudiantes' || $current_page == 'estudiantes.php') ? 'active' : ''; ?>">
             <i class="bi bi-people"></i> Estudiantes
         </a>

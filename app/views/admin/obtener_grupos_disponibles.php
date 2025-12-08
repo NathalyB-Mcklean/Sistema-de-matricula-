@@ -1,5 +1,5 @@
 <?php
-// obtener_grupos_disponibles.php - VERSIÓN CORREGIDA
+// obtener_grupos_disponibles.php - VERSIÓN MEJORADA
 
 session_start();
 require_once '../../config/conexion.php';
@@ -22,7 +22,7 @@ try {
     
     // Validar
     if ($estudianteId <= 0 || empty($periodoId)) {
-        throw new Exception("Parámetros inválidos");
+        throw new Exception("Parámetros inválidos: estudiante=$estudianteId, periodo=$periodoId");
     }
     
     // OBTENER EL CÓDIGO DEL PERÍODO (ej: "2025-2")
@@ -37,9 +37,7 @@ try {
         throw new Exception("Período no válido");
     }
     
-    // Consulta para obtener grupos disponibles
-    // NOTA: Tu tabla grupos_horarios_materia NO tiene campo periodo_academico
-    // Necesitamos considerar que los grupos pueden usarse en múltiples períodos
+    // CONSULTA SIMPLIFICADA - Obtener todos los grupos
     $sql = "
         SELECT 
             ghm.id_ghm,
@@ -51,37 +49,22 @@ try {
             ghm.aula,
             h.dia,
             TIME_FORMAT(h.hora_inicio, '%H:%i') as hora_inicio,
-            TIME_FORMAT(h.hora_fin, '%H:%i') as hora_fin,
-            '{$codigo_periodo}' as periodo_academico,
-            30 as cupo_maximo,  -- Valor por defecto, ajusta según tu BD
-            15 as cupo_actual   -- Valor por defecto, ajusta según tu BD
+            TIME_FORMAT(h.hora_fin, '%H:%i') as hora_fin
         FROM grupos_horarios_materia ghm
         JOIN materias m ON ghm.id_materia = m.id_materia
         LEFT JOIN docentes d ON m.id_docente = d.id_docente
         JOIN horarios h ON ghm.id_horario = h.id_horario
         WHERE ghm.id_ghm NOT IN (
-            -- Excluir grupos en los que el estudiante ya está matriculado en cualquier período
             SELECT mt.id_ghm 
             FROM matriculas mt
             WHERE mt.id_estudiante = ?
-            AND EXISTS (
-                -- Verificar que la materia sea la misma
-                SELECT 1 FROM grupos_horarios_materia ghm2
-                WHERE ghm2.id_ghm = mt.id_ghm
-                AND ghm2.id_materia = ghm.id_materia
-            )
-        )
-        AND m.id_carrera = (
-            -- Solo materias de la carrera del estudiante
-            SELECT e.id_carrera 
-            FROM estudiantes e 
-            WHERE e.id_estudiante = ?
+            AND mt.id_periodo = ?
         )
         ORDER BY m.codigo, h.dia, h.hora_inicio
     ";
     
     $stmt = $conexion->prepare($sql);
-    $stmt->bind_param("ii", $estudianteId, $estudianteId);
+    $stmt->bind_param("is", $estudianteId, $codigo_periodo);
     $stmt->execute();
     $result = $stmt->get_result();
     
@@ -93,6 +76,12 @@ try {
     echo json_encode($grupos, JSON_UNESCAPED_UNICODE);
     
 } catch (Exception $e) {
-    echo json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    echo json_encode([
+        'error' => $e->getMessage(),
+        'debug' => [
+            'estudiante' => $estudianteId ?? '',
+            'periodo' => $periodoId ?? ''
+        ]
+    ], JSON_UNESCAPED_UNICODE);
 }
 ?>
