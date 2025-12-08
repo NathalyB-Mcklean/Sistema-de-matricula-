@@ -204,6 +204,49 @@ try {
             $query .= " GROUP BY m.id_materia ORDER BY c.nombre, m.nombre";
             break;
             
+        case 'encuestas':
+            $titulo_reporte = 'Reporte de Encuestas de Satisfacción';
+            $query = "SELECT 
+                        en.id_encuesta,
+                        en.satisfaccion,
+                        en.observaciones,
+                        en.fecha,
+                        CONCAT(u.nombre, ' ', u.apellido) as estudiante_nombre,
+                        e.cedula,
+                        c.nombre as carrera_nombre,
+                        c.codigo as carrera_codigo,
+                        e.año_carrera,
+                        e.semestre_actual
+                      FROM encuestas en
+                      JOIN estudiantes e ON en.id_estudiante = e.id_estudiante
+                      JOIN usuario u ON e.id_usuario = u.id_usuario
+                      LEFT JOIN carreras c ON e.id_carrera = c.id_carrera
+                      WHERE 1=1";
+            
+            if ($id_carrera && $id_carrera !== '') {
+                $query .= " AND c.id_carrera = ?";
+                $params[] = $id_carrera;
+                $types .= 'i';
+            }
+            if ($fecha_desde && $fecha_desde !== '') {
+                $query .= " AND DATE(en.fecha) >= ?";
+                $params[] = $fecha_desde;
+                $types .= 's';
+            }
+            if ($fecha_hasta && $fecha_hasta !== '') {
+                $query .= " AND DATE(en.fecha) <= ?";
+                $params[] = $fecha_hasta;
+                $types .= 's';
+            }
+            if ($id_estudiante && $id_estudiante !== '') {
+                $query .= " AND e.id_estudiante = ?";
+                $params[] = $id_estudiante;
+                $types .= 'i';
+            }
+            
+            $query .= " ORDER BY en.fecha DESC";
+            break;
+            
         default:
             $titulo_reporte = 'Reporte General del Sistema';
             // Estadísticas generales
@@ -216,6 +259,50 @@ try {
                 'carrera_mas_popular' => $conexion->query("SELECT c.nombre, COUNT(DISTINCT e.id_estudiante) as total FROM carreras c LEFT JOIN estudiantes e ON c.id_carrera = e.id_carrera GROUP BY c.id_carrera ORDER BY total DESC LIMIT 1")->fetch_assoc() ?? ['nombre' => 'N/A', 'total' => 0],
                 'materia_mas_solicitada' => $conexion->query("SELECT m.nombre, COUNT(mt.id_matricula) as total FROM materias m JOIN grupos_horarios_materia ghm ON m.id_materia = ghm.id_materia LEFT JOIN matriculas mt ON ghm.id_ghm = mt.id_ghm GROUP BY m.id_materia ORDER BY total DESC LIMIT 1")->fetch_assoc() ?? ['nombre' => 'N/A', 'total' => 0],
             ];
+            
+            // Estadísticas de encuestas para el reporte general
+            $query_encuestas = $conexion->query("
+                SELECT 
+                    COUNT(*) as total_encuestas,
+                    SUM(CASE WHEN satisfaccion = 'Excelente' THEN 1 ELSE 0 END) as excelente,
+                    SUM(CASE WHEN satisfaccion = 'Conforme' THEN 1 ELSE 0 END) as conforme,
+                    SUM(CASE WHEN satisfaccion = 'Inconforme' THEN 1 ELSE 0 END) as inconforme,
+                    SUM(CASE WHEN satisfaccion = 'No respondida' THEN 1 ELSE 0 END) as no_respondida,
+                    ROUND(AVG(
+                        CASE 
+                            WHEN satisfaccion = 'Excelente' THEN 4
+                            WHEN satisfaccion = 'Conforme' THEN 3
+                            WHEN satisfaccion = 'Inconforme' THEN 2
+                            WHEN satisfaccion = 'No respondida' THEN 1
+                            ELSE 0 
+                        END
+                    ), 1) as promedio_satisfaccion
+                FROM encuestas
+            ");
+            
+            $estadisticas_encuestas = $query_encuestas->fetch_assoc();
+            $datos_reporte['estadisticas_encuestas'] = $estadisticas_encuestas;
+            
+            // Distribución de encuestas por carrera
+            $query_encuestas_carrera = $conexion->query("
+                SELECT 
+                    c.nombre as carrera,
+                    COUNT(en.id_encuesta) as total_encuestas,
+                    SUM(CASE WHEN en.satisfaccion = 'Excelente' THEN 1 ELSE 0 END) as excelente,
+                    SUM(CASE WHEN en.satisfaccion = 'Conforme' THEN 1 ELSE 0 END) as conforme,
+                    SUM(CASE WHEN en.satisfaccion = 'Inconforme' THEN 1 ELSE 0 END) as inconforme
+                FROM carreras c
+                LEFT JOIN estudiantes e ON c.id_carrera = e.id_carrera
+                LEFT JOIN encuestas en ON e.id_estudiante = en.id_estudiante
+                GROUP BY c.id_carrera
+                ORDER BY total_encuestas DESC
+            ");
+            
+            $distribucion_encuestas = [];
+            while($row = $query_encuestas_carrera->fetch_assoc()) {
+                $distribucion_encuestas[] = $row;
+            }
+            $datos_reporte['distribucion_encuestas'] = $distribucion_encuestas;
             break;
     }
     
@@ -276,6 +363,8 @@ if ($formato === 'csv' && $tipo_reporte !== 'general') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reportes - Sistema UTP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         /* Estilos Reportes - Sistema UTP */
         * {
@@ -588,6 +677,92 @@ if ($formato === 'csv' && $tipo_reporte !== 'general') {
             font-size: 14px;
         }
 
+        /* Nuevos estilos para gráficos de encuestas */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+
+        .encuestas-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .encuesta-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .encuesta-card h3 {
+            color: #6B2C91;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .satisfaccion-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .satisfaccion-item:last-child {
+            border-bottom: none;
+        }
+
+        .satisfaccion-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .satisfaccion-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+        }
+
+        .icon-excelente {
+            background: #38a169;
+        }
+
+        .icon-conforme {
+            background: #3182ce;
+        }
+
+        .icon-inconforme {
+            background: #e53e3e;
+        }
+
+        .icon-no-respondida {
+            background: #a0aec0;
+        }
+
+        .satisfaccion-count {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .satisfaccion-percent {
+            font-size: 12px;
+            color: #666;
+            margin-left: 5px;
+        }
+
         /* Gráficos */
         .graficos-container {
             display: grid;
@@ -721,6 +896,16 @@ if ($formato === 'csv' && $tipo_reporte !== 'general') {
         .badge-warning {
             background: #fff3cd;
             color: #856404;
+        }
+
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-secondary {
+            background: #e2e3e5;
+            color: #383d41;
         }
 
         /* Resumen */
@@ -873,6 +1058,10 @@ if ($formato === 'csv' && $tipo_reporte !== 'general') {
             .graficos-container {
                 grid-template-columns: 1fr;
             }
+            
+            .encuestas-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -958,7 +1147,7 @@ if ($formato === 'csv' && $tipo_reporte !== 'general') {
                     </h1>
                     <?php if ($tipo_reporte !== 'general' && is_object($datos_reporte) && $datos_reporte->num_rows > 0): ?>
                     <div style="display: flex; gap: 10px;">
-                        <a href="?tipo=<?php echo $tipo_reporte; ?>&formato=csv&fecha_desde=<?php echo $fecha_desde; ?>&fecha_hasta=<?php echo $fecha_hasta; ?>&id_carrera=<?php echo $id_carrera; ?>&id_periodo=<?php echo $id_periodo; ?>" 
+                        <a href="?tipo=<?php echo $tipo_reporte; ?>&formato=csv&fecha_desde=<?php echo $fecha_desde; ?>&fecha_hasta=<?php echo $fecha_hasta; ?>&id_carrera=<?php echo $id_carrera; ?>&id_periodo=<?php echo $id_periodo; ?>&id_estudiante=<?php echo $id_estudiante; ?>" 
                            class="btn-action btn-green">
                             <i class="bi bi-file-earmark-excel"></i> Exportar CSV
                         </a>
@@ -989,6 +1178,7 @@ if ($formato === 'csv' && $tipo_reporte !== 'general') {
                                     <option value="matriculas" <?php echo $tipo_reporte == 'matriculas' ? 'selected' : ''; ?>>Matrículas</option>
                                     <option value="ingresos" <?php echo $tipo_reporte == 'ingresos' ? 'selected' : ''; ?>>Ingresos</option>
                                     <option value="materias" <?php echo $tipo_reporte == 'materias' ? 'selected' : ''; ?>>Materias</option>
+                                    <option value="encuestas" <?php echo $tipo_reporte == 'encuestas' ? 'selected' : ''; ?>>Encuestas de Satisfacción</option>
                                 </select>
                             </div>
                             
@@ -1034,6 +1224,13 @@ if ($formato === 'csv' && $tipo_reporte !== 'general') {
                                 <label><i class="bi bi-calendar"></i> Fecha Hasta</label>
                                 <input type="date" name="fecha_hasta" value="<?php echo $fecha_hasta; ?>" onchange="this.form.submit()">
                             </div>
+                            
+                            <?php if ($tipo_reporte == 'matriculas' || $tipo_reporte == 'encuestas'): ?>
+                            <div class="form-group">
+                                <label><i class="bi bi-person"></i> ID Estudiante</label>
+                                <input type="number" name="id_estudiante" value="<?php echo $id_estudiante; ?>" placeholder="ID del estudiante" min="1" onchange="this.form.submit()">
+                            </div>
+                            <?php endif; ?>
                             
                             <div class="form-group">
                                 <button type="submit" class="btn-action btn-purple">
@@ -1107,6 +1304,114 @@ if ($formato === 'csv' && $tipo_reporte !== 'general') {
                         </div>
                     </div>
                     
+                    <!-- Estadísticas de Encuestas -->
+                    <div class="encuestas-grid">
+                        <div class="encuesta-card">
+                            <h3><i class="bi bi-clipboard-check"></i> Resumen de Encuestas</h3>
+                            <div class="satisfaccion-item">
+                                <div class="satisfaccion-label">
+                                    <div class="satisfaccion-icon icon-excelente">
+                                        <i class="bi bi-emoji-laughing"></i>
+                                    </div>
+                                    <span>Excelente</span>
+                                </div>
+                                <div class="satisfaccion-count">
+                                    <?php echo $datos_reporte['estadisticas_encuestas']['excelente'] ?? 0; ?>
+                                    <span class="satisfaccion-percent">
+                                        <?php 
+                                        $total_encuestas = $datos_reporte['estadisticas_encuestas']['total_encuestas'] ?? 1;
+                                        $porcentaje = $total_encuestas > 0 ? (($datos_reporte['estadisticas_encuestas']['excelente'] ?? 0) / $total_encuestas) * 100 : 0;
+                                        echo '(' . round($porcentaje, 1) . '%)';
+                                        ?>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="satisfaccion-item">
+                                <div class="satisfaccion-label">
+                                    <div class="satisfaccion-icon icon-conforme">
+                                        <i class="bi bi-emoji-smile"></i>
+                                    </div>
+                                    <span>Conforme</span>
+                                </div>
+                                <div class="satisfaccion-count">
+                                    <?php echo $datos_reporte['estadisticas_encuestas']['conforme'] ?? 0; ?>
+                                    <span class="satisfaccion-percent">
+                                        <?php 
+                                        $porcentaje = $total_encuestas > 0 ? (($datos_reporte['estadisticas_encuestas']['conforme'] ?? 0) / $total_encuestas) * 100 : 0;
+                                        echo '(' . round($porcentaje, 1) . '%)';
+                                        ?>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="satisfaccion-item">
+                                <div class="satisfaccion-label">
+                                    <div class="satisfaccion-icon icon-inconforme">
+                                        <i class="bi bi-emoji-frown"></i>
+                                    </div>
+                                    <span>Inconforme</span>
+                                </div>
+                                <div class="satisfaccion-count">
+                                    <?php echo $datos_reporte['estadisticas_encuestas']['inconforme'] ?? 0; ?>
+                                    <span class="satisfaccion-percent">
+                                        <?php 
+                                        $porcentaje = $total_encuestas > 0 ? (($datos_reporte['estadisticas_encuestas']['inconforme'] ?? 0) / $total_encuestas) * 100 : 0;
+                                        echo '(' . round($porcentaje, 1) . '%)';
+                                        ?>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="satisfaccion-item">
+                                <div class="satisfaccion-label">
+                                    <div class="satisfaccion-icon icon-no-respondida">
+                                        <i class="bi bi-dash-circle"></i>
+                                    </div>
+                                    <span>No respondida</span>
+                                </div>
+                                <div class="satisfaccion-count">
+                                    <?php echo $datos_reporte['estadisticas_encuestas']['no_respondida'] ?? 0; ?>
+                                    <span class="satisfaccion-percent">
+                                        <?php 
+                                        $porcentaje = $total_encuestas > 0 ? (($datos_reporte['estadisticas_encuestas']['no_respondida'] ?? 0) / $total_encuestas) * 100 : 0;
+                                        echo '(' . round($porcentaje, 1) . '%)';
+                                        ?>
+                                    </span>
+                                </div>
+                            </div>
+                            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; text-align: center;">
+                                <strong>Total encuestas:</strong> <?php echo $datos_reporte['estadisticas_encuestas']['total_encuestas'] ?? 0; ?><br>
+                                <strong>Promedio de satisfacción:</strong> <?php echo $datos_reporte['estadisticas_encuestas']['promedio_satisfaccion'] ?? 'N/A'; ?>/4
+                            </div>
+                        </div>
+                        
+                        <div class="encuesta-card">
+                            <h3><i class="bi bi-bar-chart"></i> Gráfico de Satisfacción</h3>
+                            <div class="chart-container">
+                                <canvas id="chartSatisfaccion"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Distribución por Carrera -->
+                    <?php if (!empty($datos_reporte['distribucion_encuestas'])): ?>
+                    <div style="margin-top: 30px;">
+                        <h3 style="color: #6B2C91; margin-bottom: 20px;"><i class="bi bi-mortarboard"></i> Encuestas por Carrera</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">
+                            <?php foreach ($datos_reporte['distribucion_encuestas'] as $carrera): ?>
+                            <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                                <h4 style="color: #333; margin-bottom: 10px;"><?php echo htmlspecialchars($carrera['carrera']); ?></h4>
+                                <div style="font-size: 14px; color: #666;">
+                                    <div>Total encuestas: <strong><?php echo $carrera['total_encuestas']; ?></strong></div>
+                                    <div>Excelente: <strong><?php echo $carrera['excelente']; ?></strong></div>
+                                    <div>Conforme: <strong><?php echo $carrera['conforme']; ?></strong></div>
+                                    <div>Inconforme: <strong><?php echo $carrera['inconforme']; ?></strong></div>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <!-- Gráficos del Sistema -->
                     <div class="graficos-container">
                         <div class="grafico-card">
                             <h3><i class="bi bi-bar-chart"></i> Distribución por Carrera</h3>
@@ -1173,8 +1478,71 @@ if ($formato === 'csv' && $tipo_reporte !== 'general') {
                         </div>
                     </div>
                     
+                    <?php elseif ($tipo_reporte == 'encuestas' && is_object($datos_reporte)): ?>
+                    <!-- Reporte Detallado de Encuestas -->
+                    <?php if ($datos_reporte->num_rows > 0): ?>
+                    <div class="table-responsive">
+                        <table class="reporte-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Estudiante</th>
+                                    <th>Cédula</th>
+                                    <th>Carrera</th>
+                                    <th>Satisfacción</th>
+                                    <th>Observaciones</th>
+                                    <th>Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php while($row = $datos_reporte->fetch_assoc()): ?>
+                                <tr>
+                                    <td><?php echo $row['id_encuesta']; ?></td>
+                                    <td><?php echo htmlspecialchars($row['estudiante_nombre']); ?></td>
+                                    <td><?php echo htmlspecialchars($row['cedula']); ?></td>
+                                    <td><?php echo htmlspecialchars($row['carrera_nombre'] . ' (' . $row['carrera_codigo'] . ')'); ?></td>
+                                    <td>
+                                        <?php 
+                                        $badge_class = '';
+                                        switch($row['satisfaccion']) {
+                                            case 'Excelente': $badge_class = 'badge-success'; break;
+                                            case 'Conforme': $badge_class = 'badge-warning'; break;
+                                            case 'Inconforme': $badge_class = 'badge-danger'; break;
+                                            default: $badge_class = 'badge-secondary';
+                                        }
+                                        ?>
+                                        <span class="badge <?php echo $badge_class; ?>">
+                                            <?php echo htmlspecialchars($row['satisfaccion']); ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo htmlspecialchars(substr($row['observaciones'] ?? 'Sin observaciones', 0, 50)) . (strlen($row['observaciones'] ?? '') > 50 ? '...' : ''); ?></td>
+                                    <td><?php echo date('d/m/Y H:i', strtotime($row['fecha'])); ?></td>
+                                </tr>
+                                <?php endwhile; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="resumen-reporte">
+                        <h4><i class="bi bi-info-circle"></i> Resumen del Reporte de Encuestas</h4>
+                        <div class="resumen-content">
+                            <div class="resumen-item">
+                                <i class="bi bi-list-ol"></i>
+                                <span>Total de encuestas: <?php echo $datos_reporte->num_rows; ?></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <?php else: ?>
+                    <div class="empty-state">
+                        <i class="bi bi-clipboard-x"></i>
+                        <h3>No hay datos de encuestas</h3>
+                        <p>No se encontraron encuestas con los filtros aplicados.</p>
+                    </div>
+                    <?php endif; ?>
+                    
                     <?php elseif (is_object($datos_reporte) && $datos_reporte->num_rows > 0): ?>
-                    <!-- Reporte Tabular -->
+                    <!-- Reporte Tabular (otros tipos) -->
                     <div class="table-responsive">
                         <table class="reporte-table">
                             <thead>
@@ -1311,6 +1679,64 @@ if ($formato === 'csv' && $tipo_reporte !== 'general') {
             }
         });
         
+        <?php if ($tipo_reporte == 'general' && isset($datos_reporte['estadisticas_encuestas'])): ?>
+        // Gráfico de satisfacción
+        document.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('chartSatisfaccion').getContext('2d');
+            
+            const data = {
+                labels: ['Excelente', 'Conforme', 'Inconforme', 'No respondida'],
+                datasets: [{
+                    data: [
+                        <?php echo $datos_reporte['estadisticas_encuestas']['excelente'] ?? 0; ?>,
+                        <?php echo $datos_reporte['estadisticas_encuestas']['conforme'] ?? 0; ?>,
+                        <?php echo $datos_reporte['estadisticas_encuestas']['inconforme'] ?? 0; ?>,
+                        <?php echo $datos_reporte['estadisticas_encuestas']['no_respondida'] ?? 0; ?>
+                    ],
+                    backgroundColor: [
+                        '#38a169', // Excelente - verde
+                        '#3182ce', // Conforme - azul
+                        '#e53e3e', // Inconforme - rojo
+                        '#a0aec0'  // No respondida - gris
+                    ],
+                    borderWidth: 1
+                }]
+            };
+            
+            const config = {
+                type: 'pie',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            
+            new Chart(ctx, config);
+        });
+        <?php endif; ?>
+        
         // Estilos para impresión
         const style = document.createElement('style');
         style.innerHTML = `
@@ -1345,10 +1771,19 @@ if ($formato === 'csv' && $tipo_reporte !== 'general') {
                 .estadisticas-grid, .graficos-container {
                     break-inside: avoid;
                 }
+                
+                .chart-container {
+                    height: 250px !important;
+                }
             }
         `;
         document.head.appendChild(style);
     </script>
 </body>
 </html>
-<?php $conexion->close(); ?>
+<?php 
+// Solo cerrar la conexión si está abierta y no se ha cerrado antes
+if (isset($conexion) && is_object($conexion) && method_exists($conexion, 'close') && $conexion->thread_id) {
+    $conexion->close();
+}
+?>

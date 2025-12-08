@@ -1,11 +1,10 @@
 <?php
-// app/utils/validaciones.php - VERSIÓN COMPATIBLE (funciones + clase)
+// app/utils/validaciones.php - VERSIÓN COMPLETA CON TODAS LAS VALIDACIONES
 
 // ==============================================
 // FUNCIONES ORIGINALES (para compatibilidad)
 // ==============================================
 
-// Función para validar que no esté vacío
 function validarNoVacio($valor, $campo) {
     if (trim($valor) === '') {
         throw new Exception("El campo $campo es obligatorio.");
@@ -13,7 +12,6 @@ function validarNoVacio($valor, $campo) {
     return trim($valor);
 }
 
-// Función para validar correo UTP
 function validarCorreoUTP($correo) {
     if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
         throw new Exception("El correo electrónico no es válido.");
@@ -24,7 +22,6 @@ function validarCorreoUTP($correo) {
     return $correo;
 }
 
-// Función para validar contraseña segura
 function validarPassword($password) {
     if (strlen($password) < 8) {
         throw new Exception("La contraseña debe tener al menos 8 caracteres.");
@@ -41,10 +38,61 @@ function validarPassword($password) {
     return $password;
 }
 
-// Función para validar coincidencia de contraseñas
 function validarCoincidenciaPassword($password, $password2) {
     if ($password !== $password2) {
         throw new Exception("Las contraseñas no coinciden.");
+    }
+}
+
+// ==============================================
+// FUNCIONES NUEVAS PARA REGISTRO
+// ==============================================
+
+function validarFormatoCedula($cedula) {
+    if (empty($cedula)) {
+        return ''; // La cédula es opcional
+    }
+    
+    if (!preg_match('/^[0-9]{1}-[0-9]{3}-[0-9]{3}$/', $cedula)) {
+        throw new Exception("La cédula debe tener el formato: 8-XXX-XXX (ej: 8-123-456)");
+    }
+    return $cedula;
+}
+
+function validarFormatoTelefono($telefono) {
+    if (empty($telefono)) {
+        return ''; // El teléfono es opcional
+    }
+    
+    if (!preg_match('/^[0-9]{4}-[0-9]{4}$/', $telefono)) {
+        throw new Exception("El teléfono debe tener el formato: XXXX-XXXX (ej: 6000-1234)");
+    }
+    return $telefono;
+}
+
+function validarUnicidadCorreo($correo, $conexion) {
+    $stmt = $conexion->prepare("SELECT id_usuario FROM usuario WHERE correo = ?");
+    $stmt->bind_param("s", $correo);
+    $stmt->execute();
+    $resultado = $stmt->get_result();
+    
+    if ($resultado->num_rows > 0) {
+        throw new Exception("Ya existe una cuenta con ese correo institucional.");
+    }
+}
+
+function validarUnicidadCedula($cedula, $conexion) {
+    if (empty($cedula)) {
+        return;
+    }
+    
+    $stmt = $conexion->prepare("SELECT id_estudiante FROM estudiantes WHERE cedula = ?");
+    $stmt->bind_param("s", $cedula);
+    $stmt->execute();
+    $resultado = $stmt->get_result();
+    
+    if ($resultado->num_rows > 0) {
+        throw new Exception("Ya existe un estudiante registrado con esa cédula.");
     }
 }
 
@@ -137,20 +185,36 @@ class Validaciones {
         }
     }
     
-    // Validar teléfono (nueva funcionalidad)
+    // Validar teléfono (nueva funcionalidad) - versión mejorada
     public static function validarTelefono($telefono) {
-        if (!preg_match('/^[0-9\-\s\(\)]{7,20}$/', $telefono)) {
-            throw new Exception("El teléfono no tiene un formato válido.");
+        if (!preg_match('/^[0-9]{4}-[0-9]{4}$/', $telefono)) {
+            throw new Exception("El teléfono debe tener formato: XXXX-XXXX (ej: 6000-1234)");
         }
         return $telefono;
     }
     
-    // Validar cédula (nueva funcionalidad)
+    // Validar cédula (nueva funcionalidad) - versión mejorada
     public static function validarCedula($cedula) {
-        if (!preg_match('/^[0-9\-]{8,15}$/', $cedula)) {
-            throw new Exception("La cédula debe tener entre 8 y 15 caracteres (números y guiones).");
+        if (!preg_match('/^[0-9]{1}-[0-9]{3}-[0-9]{3}$/', $cedula)) {
+            throw new Exception("La cédula debe tener formato: 8-XXX-XXX (ej: 8-123-456)");
         }
         return $cedula;
+    }
+    
+    // Validar formato opcional de cédula (puede estar vacío)
+    public static function validarCedulaOpcional($cedula) {
+        if (empty(trim($cedula))) {
+            return '';
+        }
+        return self::validarCedula($cedula);
+    }
+    
+    // Validar formato opcional de teléfono (puede estar vacío)
+    public static function validarTelefonoOpcional($telefono) {
+        if (empty(trim($telefono))) {
+            return '';
+        }
+        return self::validarTelefono($telefono);
     }
     
     // Validar que un valor esté en una lista (nueva funcionalidad)
@@ -168,22 +232,22 @@ class Validaciones {
         }
         return $url;
     }
-
-public static function validarNoVacio($valor, $campo) {
-    return self::noVacio($valor, $campo);
+    
+    // Alias para compatibilidad con código existente
+    public static function validarNoVacio($valor, $campo) {
+        return self::noVacio($valor, $campo);
+    }
+    
+    public static function validarCorreoUTP($correo) {
+        return self::correoUTP($correo);
+    }
+    
+    public static function validarPassword($password) {
+        return self::passwordSegura($password);
+    }
+    
+    public static function validarCoincidenciaPassword($password, $password2) {
+        return self::coincidenciaPassword($password, $password2);
+    }
 }
-
-public static function validarCorreoUTP($correo) {
-    return self::correoUTP($correo);
-}
-
-public static function validarPassword($password) {
-    return self::passwordSegura($password);
-}
-
-public static function validarCoincidenciaPassword($password, $password2) {
-    return self::coincidenciaPassword($password, $password2);
-}
-}
-
 ?>
