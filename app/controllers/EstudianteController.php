@@ -1,35 +1,55 @@
 <?php
 // app/controllers/EstudianteController.php
-session_start();
-require_once '../models/EstudianteModel.php';
-require_once '../models/UsuarioModel.php';
-require_once '../utils/validaciones.php';
 
 class EstudianteController {
     private $model;
-    private $usuarioModel;
     
     public function __construct() {
+        require_once '../models/EstudianteModel.php';
+        require_once '../models/UsuarioModel.php';
         $this->model = new EstudianteModel();
-        $this->usuarioModel = new UsuarioModel();
     }
     
     // LISTAR ESTUDIANTES
     public function index() {
+        session_start();
         if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
             header('Location: /auth/login');
             exit();
         }
         
-        $estudiantes = $this->model->getAll();
+        // Obtener parámetros de búsqueda
+        $filtros = [
+            'estado' => $_GET['estado'] ?? '',
+            'carrera' => $_GET['carrera'] ?? '',
+            'año' => $_GET['año'] ?? '',
+            'busqueda' => $_GET['busqueda'] ?? ''
+        ];
+        
+        // Obtener datos
+        $estudiantes = $this->model->getAll($filtros);
         $carreras = $this->model->getCarreras();
         $stats = $this->model->getStats();
         
-        include '../views/admin/estudiantes/listar.php';
+        // Incluir vista
+        include '../views/admin/estudiantes/index.php';
     }
     
-    // CREAR NUEVO ESTUDIANTE (CON USUARIO)
+    // MOSTRAR FORMULARIO DE CREACIÓN
+    public function create() {
+        session_start();
+        if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
+            header('Location: /auth/login');
+            exit();
+        }
+        
+        $carreras = $this->model->getCarreras();
+        include '../views/admin/estudiantes/create.php';
+    }
+    
+    // GUARDAR NUEVO ESTUDIANTE
     public function store() {
+        session_start();
         if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
             header('Location: /auth/login');
             exit();
@@ -37,46 +57,41 @@ class EstudianteController {
         
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             try {
-                // Validar datos de usuario
-                validarNombre($_POST['nombre']);
-                validarApellido($_POST['apellido']);
-                validarCorreo($_POST['correo']);
-                validarPassword($_POST['password']);
-                validarCoincidenciaPassword($_POST['password'], $_POST['confirm_password']);
-                validarCedula($_POST['cedula']);
-                validarTelefono($_POST['telefono'] ?? '');
+                // Validaciones básicas
+                if (empty($_POST['nombre']) || empty($_POST['apellido']) || 
+                    empty($_POST['correo']) || empty($_POST['cedula'])) {
+                    throw new Exception("Todos los campos obligatorios deben ser completados");
+                }
                 
-                // Crear usuario primero
-                $usuarioData = [
-                    'nombre' => limpiarEntrada($_POST['nombre']),
-                    'apellido' => limpiarEntrada($_POST['apellido']),
-                    'correo' => limpiarEntrada($_POST['correo']),
-                    'password' => password_hash($_POST['password'], PASSWORD_DEFAULT),
-                    'rol' => 'estudiante',
-                    'estado' => 'activo'
-                ];
+                // Validar correo único
+                if ($this->model->existeCorreo($_POST['correo'])) {
+                    throw new Exception("El correo electrónico ya está registrado");
+                }
                 
-                $id_usuario = $this->usuarioModel->create($usuarioData);
+                // Validar cédula única
+                if ($this->model->existeCedula($_POST['cedula'])) {
+                    throw new Exception("La cédula ya está registrada");
+                }
                 
-                // Crear estudiante
-                $estudianteData = [
-                    'id_usuario' => $id_usuario,
-                    'cedula' => limpiarEntrada($_POST['cedula']),
-                    'telefono' => limpiarEntrada($_POST['telefono'] ?? ''),
+                $data = [
+                    'nombre' => trim($_POST['nombre']),
+                    'apellido' => trim($_POST['apellido']),
+                    'correo' => trim($_POST['correo']),
+                    'password' => password_hash($_POST['password'] ?? '123456', PASSWORD_DEFAULT), // Contraseña por defecto
+                    'cedula' => trim($_POST['cedula']),
+                    'telefono' => trim($_POST['telefono'] ?? ''),
                     'fecha_nacimiento' => $_POST['fecha_nacimiento'] ?? null,
-                    'direccion' => limpiarEntrada($_POST['direccion'] ?? ''),
-                    'id_carrera' => intval($_POST['id_carrera']) ?: null,
+                    'direccion' => trim($_POST['direccion'] ?? ''),
+                    'id_carrera' => intval($_POST['id_carrera'] ?? 0) ?: null,
                     'año_carrera' => intval($_POST['año_carrera'] ?? 1),
                     'semestre_actual' => intval($_POST['semestre_actual'] ?? 1),
                     'fecha_ingreso' => date('Y-m-d')
                 ];
                 
-                if ($this->model->create($estudianteData)) {
+                if ($this->model->create($data)) {
                     $_SESSION['success'] = 'Estudiante creado exitosamente';
                     header('Location: /admin/estudiantes');
                 } else {
-                    // Si falla, eliminar el usuario creado
-                    $this->usuarioModel->delete($id_usuario);
                     throw new Exception('Error al crear el estudiante');
                 }
                 
@@ -88,8 +103,77 @@ class EstudianteController {
         }
     }
     
-    // ELIMINAR ESTUDIANTE (CON RESTRICCIONES)
+    // MOSTRAR FORMULARIO DE EDICIÓN
+    public function edit($id) {
+        session_start();
+        if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
+            header('Location: /auth/login');
+            exit();
+        }
+        
+        $estudiante = $this->model->getById($id);
+        if (!$estudiante) {
+            $_SESSION['error'] = 'Estudiante no encontrado';
+            header('Location: /admin/estudiantes');
+            exit();
+        }
+        
+        $carreras = $this->model->getCarreras();
+        include '../views/admin/estudiantes/edit.php';
+    }
+    
+    // ACTUALIZAR ESTUDIANTE
+    public function update($id) {
+        session_start();
+        if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
+            header('Location: /auth/login');
+            exit();
+        }
+        
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            try {
+                $estudiante = $this->model->getById($id);
+                if (!$estudiante) {
+                    throw new Exception('Estudiante no encontrado');
+                }
+                
+                $data = [
+                    'nombre' => trim($_POST['nombre']),
+                    'apellido' => trim($_POST['apellido']),
+                    'correo' => trim($_POST['correo']),
+                    'cedula' => trim($_POST['cedula']),
+                    'telefono' => trim($_POST['telefono'] ?? ''),
+                    'fecha_nacimiento' => $_POST['fecha_nacimiento'] ?? null,
+                    'direccion' => trim($_POST['direccion'] ?? ''),
+                    'id_carrera' => intval($_POST['id_carrera'] ?? 0) ?: null,
+                    'año_carrera' => intval($_POST['año_carrera'] ?? 1),
+                    'semestre_actual' => intval($_POST['semestre_actual'] ?? 1),
+                    'estado' => $_POST['estado'] ?? 'activo'
+                ];
+                
+                // Si se cambió la contraseña
+                if (!empty($_POST['password'])) {
+                    $data['password'] = password_hash($_POST['password'], PASSWORD_DEFAULT);
+                }
+                
+                if ($this->model->update($id, $data)) {
+                    $_SESSION['success'] = 'Estudiante actualizado exitosamente';
+                    header('Location: /admin/estudiantes');
+                } else {
+                    throw new Exception('Error al actualizar el estudiante');
+                }
+                
+            } catch (Exception $e) {
+                $_SESSION['error'] = $e->getMessage();
+                header("Location: /admin/estudiantes/edit?id=$id");
+            }
+            exit();
+        }
+    }
+    
+    // ELIMINAR ESTUDIANTE
     public function destroy($id) {
+        session_start();
         if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
             header('Location: /auth/login');
             exit();
@@ -97,21 +181,20 @@ class EstudianteController {
         
         try {
             $estudiante = $this->model->getById($id);
-            
             if (!$estudiante) {
                 throw new Exception('Estudiante no encontrado');
             }
             
-            // Verificar si tiene matrículas
             if ($this->model->hasMatriculas($id)) {
                 // Solo marcar como inactivo
-                $this->usuarioModel->updateEstado($estudiante['id_usuario'], 'inactivo');
-                $_SESSION['success'] = 'Estudiante marcado como inactivo (tiene matrículas)';
+                if ($this->model->updateEstado($estudiante['id_usuario'], 'inactivo')) {
+                    $_SESSION['success'] = 'Estudiante marcado como inactivo (tiene matrículas)';
+                }
             } else {
                 // Eliminar completamente
-                $this->model->delete($id);
-                $this->usuarioModel->delete($estudiante['id_usuario']);
-                $_SESSION['success'] = 'Estudiante eliminado exitosamente';
+                if ($this->model->delete($id)) {
+                    $_SESSION['success'] = 'Estudiante eliminado exitosamente';
+                }
             }
             
         } catch (Exception $e) {
@@ -122,3 +205,4 @@ class EstudianteController {
         exit();
     }
 }
+?>

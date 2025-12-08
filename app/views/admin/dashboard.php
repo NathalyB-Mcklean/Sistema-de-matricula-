@@ -126,7 +126,11 @@ if ($id_periodo_activo) {
               ORDER BY total_estudiantes DESC
               LIMIT 5";
 }
-$materias_populares = $conexion->query($query);
+
+
+// Definir la ruta base para incluir el sidebar
+$base_path = dirname(__FILE__); // Esto devuelve: C:\wamp64\www\Sistema-de-matricula-\app\views\admin
+$sidebar_path = $base_path . '\partials\sidebar.php';
 ?>
 
 <!DOCTYPE html>
@@ -162,56 +166,7 @@ $materias_populares = $conexion->query($query);
 <body>    
     <div class="dashboard-container">
         <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="logo">
-                <h2>UTP Admin</h2>
-                <small>Sistema de Matrícula</small>
-            </div>
-            
-            <div class="user-info">
-                <div class="avatar">
-                    <i class="bi bi-person-circle"></i>
-                </div>
-                <h3><?php echo $_SESSION['user_name']; ?></h3>
-                <p>Administrador</p>
-            </div>
-            
-            <nav class="nav-menu">
-                <a href="dashboard.php" class="nav-item active">
-                    <i class="bi bi-speedometer2"></i> Dashboard
-                </a>
-                <a href="estudiantes.php" class="nav-item">
-                    <i class="bi bi-people"></i> Estudiantes
-                </a>
-                <a href="docentes.php" class="nav-item">
-                    <i class="bi bi-person-video"></i> Docentes
-                </a>
-                <a href="materias.php" class="nav-item">
-                    <i class="bi bi-journal-text"></i> Materias
-                </a>
-                <a href="matriculas.php" class="nav-item">
-                    <i class="bi bi-pencil-square"></i> Matrículas
-                </a>
-                <a href="carreras.php" class="nav-item">
-                    <i class="bi bi-mortarboard"></i> Carreras
-                </a>
-                <a href="periodos.php" class="nav-item">
-                    <i class="bi bi-calendar-range"></i> Períodos
-                </a>
-                <a href="reportes.php" class="nav-item">
-                    <i class="bi bi-graph-up"></i> Reportes
-                </a>
-                <a href="auditoria.php" class="nav-item">
-                    <i class="bi bi-clipboard-data"></i> Auditoría
-                </a>
-                
-                <div class="logout">
-                    <a href="../auth/logout.php" class="nav-item">
-                        <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
-                    </a>
-                </div>
-            </nav>
-        </aside>
+        <?php include 'partials/sidebar.php'; ?>
         
         <!-- Main Content -->
         <main class="main-content">
@@ -407,63 +362,7 @@ $materias_populares = $conexion->query($query);
                         </table>
                     </div>
                 </div>
-                
-                <!-- Materias más populares -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2><i class="bi bi-star-fill me-2"></i>Materias más Populares</h2>
-                        <a href="materias.php" class="view-all">Ver todas</a>
-                    </div>
-                    <div class="table-responsive">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Materia</th>
-                                    <th>Estudiantes</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php while($materia = $materias_populares->fetch_assoc()): ?>
-                                <tr>
-                                    <td class="materia-nombre" title="<?php echo htmlspecialchars($materia['nombre']); ?>">
-                                        <?php echo htmlspecialchars($materia['nombre']); ?>
-                                    </td>
-                                    <td><?php echo $materia['total_estudiantes']; ?></td>
-                                </tr>
-                                <?php endwhile; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Acciones rápidas -->
-            <div class="card" style="margin-top: 30px;">
-                <div class="card-header">
-                    <h2><i class="bi bi-lightning-fill me-2"></i>Acciones rápidas</h2>
-                </div>
-                <div class="quick-actions">
-                    <a href="estudiantes.php?action=crear" class="btn-action btn-purple">
-                        <i class="bi bi-person-plus"></i> Agregar Estudiante
-                    </a>
-                    <a href="docentes.php?action=crear" class="btn-action btn-green">
-                        <i class="bi bi-person-video"></i> Agregar Docente
-                    </a>
-                    <a href="materias.php?action=crear" class="btn-action btn-yellow">
-                        <i class="bi bi-journal-plus"></i> Crear Nueva Materia
-                    </a>
-                    <a href="periodos.php" class="btn-action btn-orange">
-                        <i class="bi bi-calendar-plus"></i> Gestionar Períodos
-                    </a>
-                    <a href="reportes.php" class="btn-action btn-blue">
-                        <i class="bi bi-file-earmark-bar-graph"></i> Generar Reporte
-                    </a>
-                    <a href="auditoria.php" class="btn-action btn-violet">
-                        <i class="bi bi-clipboard-check"></i> Ver Auditoría
-                    </a>
-                </div>
-            </div>
-        </main>
+              </main>
     </div>
 </body>
 </html>

@@ -1,0 +1,13 @@
+# .htaccess en la raíz del proyecto
+RewriteEngine On
+
+# Redirigir todo a index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]
+
+# Proteger archivos sensibles
+<FilesMatch "\.(env|log|sql|md|gitignore)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
