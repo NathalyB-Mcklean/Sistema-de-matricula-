@@ -1,5 +1,5 @@
 <?php
-// app/views/admin/estudiantes.php
+// app/views/admin/estudiantes.php - VERSIÓN COMPLETA CON CRUD
 
 session_start();
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
@@ -8,86 +8,185 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
 }
 
 require_once '../../config/conexion.php';
+require_once '../../utils/validaciones.php';
 
-// Manejar acciones CRUD
+$mensaje = '';
 $accion = $_GET['accion'] ?? 'listar';
 $id_estudiante = $_GET['id'] ?? null;
 
-// Procesar eliminación
-if ($accion === 'eliminar' && $id_estudiante) {
-    // Verificar si el estudiante tiene matrículas
-    $stmt_check = $conexion->prepare("SELECT COUNT(*) as total FROM matriculas WHERE id_estudiante = ?");
-    $stmt_check->bind_param("i", $id_estudiante);
-    $stmt_check->execute();
-    $result = $stmt_check->get_result()->fetch_assoc();
-    
-    if ($result['total'] > 0) {
-        // No eliminar, solo marcar como inactivo en usuario
-        $stmt_get_user = $conexion->prepare("SELECT id_usuario FROM estudiantes WHERE id_estudiante = ?");
-        $stmt_get_user->bind_param("i", $id_estudiante);
-        $stmt_get_user->execute();
-        $user_result = $stmt_get_user->get_result()->fetch_assoc();
+// ========== PROCESAR FORMULARIO ==========
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    try {
+        // Sanitizar y validar datos
+        $nombre = Validaciones::sanitizarTexto($_POST['nombre']);
+        $apellido = Validaciones::sanitizarTexto($_POST['apellido']);
+        $cedula = Validaciones::sanitizarTexto($_POST['cedula']);
+        $correo = Validaciones::validarCorreoUTP($_POST['correo']);
+        $telefono = Validaciones::sanitizarTexto($_POST['telefono']);
+        $año_carrera = Validaciones::validarRango($_POST['año_carrera'], 1, 5, 'año de carrera');
+        $semestre_actual = Validaciones::validarRango($_POST['semestre_actual'], 1, 2, 'semestre actual');
+        $id_carrera = Validaciones::sanitizarEntero($_POST['id_carrera']);
+        $password = $_POST['password'] ?? '';
+        $estado = $_POST['estado'] ?? 'activo';
         
-        $stmt_update = $conexion->prepare("UPDATE usuario SET estado = 'inactivo' WHERE id_usuario = ?");
-        $stmt_update->bind_param("i", $user_result['id_usuario']);
-        $stmt_update->execute();
+        // Validaciones específicas
+        Validaciones::validarNoVacio($nombre, 'nombre');
+        Validaciones::validarNoVacio($apellido, 'apellido');
+        Validaciones::validarNoVacio($cedula, 'cédula');
         
-        $mensaje = "Estudiante marcado como inactivo porque tiene matrículas registradas.";
-    } else {
-        // Eliminar completamente
-        $stmt_get_user = $conexion->prepare("SELECT id_usuario FROM estudiantes WHERE id_estudiante = ?");
-        $stmt_get_user->bind_param("i", $id_estudiante);
-        $stmt_get_user->execute();
-        $user_result = $stmt_get_user->get_result()->fetch_assoc();
+        // Verificar si el correo ya existe (solo para nuevo)
+        if (!isset($_POST['id_estudiante'])) {
+            $stmt_check = $conexion->prepare("SELECT id_usuario FROM usuario WHERE correo = ?");
+            $stmt_check->bind_param("s", $correo);
+            $stmt_check->execute();
+            if ($stmt_check->get_result()->num_rows > 0) {
+                throw new Exception("Ya existe un usuario con ese correo.");
+            }
+        }
         
-        // Eliminar estudiante
-        $stmt1 = $conexion->prepare("DELETE FROM estudiantes WHERE id_estudiante = ?");
-        $stmt1->bind_param("i", $id_estudiante);
-        $stmt1->execute();
+        if (isset($_POST['id_estudiante'])) {
+            // ========== ACTUALIZAR ESTUDIANTE ==========
+            $id_est = Validaciones::sanitizarEntero($_POST['id_estudiante']);
+            
+            // 1. Obtener id_usuario del estudiante
+            $stmt_get = $conexion->prepare("SELECT id_usuario FROM estudiantes WHERE id_estudiante = ?");
+            $stmt_get->bind_param("i", $id_est);
+            $stmt_get->execute();
+            $result = $stmt_get->get_result()->fetch_assoc();
+            $id_usuario = $result['id_usuario'];
+            
+            // 2. Actualizar tabla usuario
+            if (!empty($password)) {
+                Validaciones::validarPassword($password);
+                $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                $stmt_usuario = $conexion->prepare("UPDATE usuario SET nombre = ?, apellido = ?, correo = ?, password = ?, estado = ? WHERE id_usuario = ?");
+                $stmt_usuario->bind_param("sssssi", $nombre, $apellido, $correo, $password_hash, $estado, $id_usuario);
+            } else {
+                $stmt_usuario = $conexion->prepare("UPDATE usuario SET nombre = ?, apellido = ?, correo = ?, estado = ? WHERE id_usuario = ?");
+                $stmt_usuario->bind_param("ssssi", $nombre, $apellido, $correo, $estado, $id_usuario);
+            }
+            $stmt_usuario->execute();
+            
+            // 3. Actualizar tabla estudiantes
+            $stmt_est = $conexion->prepare("UPDATE estudiantes SET cedula = ?, telefono = ?, año_carrera = ?, semestre_actual = ?, id_carrera = ? WHERE id_estudiante = ?");
+            $stmt_est->bind_param("ssiiii", $cedula, $telefono, $año_carrera, $semestre_actual, $id_carrera, $id_est);
+            $stmt_est->execute();
+            
+            $mensaje = '<div class="alert alert-success">Estudiante actualizado correctamente</div>';
+            
+        } else {
+            // ========== CREAR NUEVO ESTUDIANTE ==========
+            // 1. Validar contraseña para nuevo estudiante
+            Validaciones::validarPassword($password);
+            $password_hash = password_hash($password, PASSWORD_DEFAULT);
+            
+            // 2. Insertar en usuario (rol = 'estudiante')
+            $stmt_usuario = $conexion->prepare("INSERT INTO usuario (nombre, apellido, correo, password, rol, estado) VALUES (?, ?, ?, ?, 'estudiante', ?)");
+            $stmt_usuario->bind_param("sssss", $nombre, $apellido, $correo, $password_hash, $estado);
+            $stmt_usuario->execute();
+            $id_usuario = $conexion->insert_id;
+            
+            // 3. Insertar en estudiantes
+            $stmt_est = $conexion->prepare("INSERT INTO estudiantes (cedula, id_usuario, telefono, año_carrera, semestre_actual, id_carrera) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt_est->bind_param("sisiii", $cedula, $id_usuario, $telefono, $año_carrera, $semestre_actual, $id_carrera);
+            $stmt_est->execute();
+            
+            $mensaje = '<div class="alert alert-success">Estudiante creado correctamente</div>';
+        }
         
-        // Eliminar usuario
-        $stmt2 = $conexion->prepare("DELETE FROM usuario WHERE id_usuario = ?");
-        $stmt2->bind_param("i", $user_result['id_usuario']);
-        $stmt2->execute();
+        // Redirigir después de guardar
+        header('Location: estudiantes.php?mensaje=' . urlencode('Operación realizada con éxito'));
+        exit();
         
-        $mensaje = "Estudiante eliminado exitosamente.";
+    } catch (Exception $e) {
+        $mensaje = '<div class="alert alert-danger">' . $e->getMessage() . '</div>';
     }
-    
-    // Registrar en auditoría
-    $audit_stmt = $conexion->prepare("INSERT INTO auditoria (usuario, accion) VALUES (?, ?)");
-    $accion_audit = "Eliminó estudiante ID: $id_estudiante";
-    $audit_stmt->bind_param("ss", $_SESSION['user_name'], $accion_audit);
-    $audit_stmt->execute();
-    
-    header('Location: estudiantes.php?mensaje=' . urlencode($mensaje));
-    exit();
 }
 
-// Obtener todos los estudiantes con información de usuario y carrera
+// ========== OBTENER ESTUDIANTE PARA EDITAR ==========
+$estudiante_editar = null;
+if ($id_estudiante && $accion == 'editar') {
+    $stmt = $conexion->prepare("
+        SELECT e.*, u.nombre, u.apellido, u.correo, u.estado as estado_usuario
+        FROM estudiantes e
+        JOIN usuario u ON e.id_usuario = u.id_usuario
+        WHERE e.id_estudiante = ?
+    ");
+    $stmt->bind_param("i", $id_estudiante);
+    $stmt->execute();
+    $estudiante_editar = $stmt->get_result()->fetch_assoc();
+}
+
+// ========== ELIMINAR ESTUDIANTE ==========
+if ($accion === 'eliminar' && $id_estudiante) {
+    try {
+        // Verificar si tiene matrículas
+        $stmt_check = $conexion->prepare("SELECT COUNT(*) as total FROM matriculas WHERE id_estudiante = ?");
+        $stmt_check->bind_param("i", $id_estudiante);
+        $stmt_check->execute();
+        $result = $stmt_check->get_result()->fetch_assoc();
+        
+        if ($result['total'] > 0) {
+            // Solo marcar como inactivo
+            $stmt_get = $conexion->prepare("SELECT id_usuario FROM estudiantes WHERE id_estudiante = ?");
+            $stmt_get->bind_param("i", $id_estudiante);
+            $stmt_get->execute();
+            $user_result = $stmt_get->get_result()->fetch_assoc();
+            
+            $stmt_update = $conexion->prepare("UPDATE usuario SET estado = 'inactivo' WHERE id_usuario = ?");
+            $stmt_update->bind_param("i", $user_result['id_usuario']);
+            $stmt_update->execute();
+            
+            $msg = "Estudiante marcado como inactivo (tiene matrículas)";
+        } else {
+            // Eliminar completamente
+            $stmt_get = $conexion->prepare("SELECT id_usuario FROM estudiantes WHERE id_estudiante = ?");
+            $stmt_get->bind_param("i", $id_estudiante);
+            $stmt_get->execute();
+            $user_result = $stmt_get->get_result()->fetch_assoc();
+            
+            // Eliminar estudiante
+            $stmt1 = $conexion->prepare("DELETE FROM estudiantes WHERE id_estudiante = ?");
+            $stmt1->bind_param("i", $id_estudiante);
+            $stmt1->execute();
+            
+            // Eliminar usuario
+            $stmt2 = $conexion->prepare("DELETE FROM usuario WHERE id_usuario = ?");
+            $stmt2->bind_param("i", $user_result['id_usuario']);
+            $stmt2->execute();
+            
+            $msg = "Estudiante eliminado exitosamente";
+        }
+        
+        // Auditoría
+        $audit = $conexion->prepare("INSERT INTO auditoria (usuario, accion) VALUES (?, ?)");
+        $accion_audit = "Eliminó estudiante ID: $id_estudiante";
+        $audit->bind_param("ss", $_SESSION['user_name'], $accion_audit);
+        $audit->execute();
+        
+        header('Location: estudiantes.php?mensaje=' . urlencode($msg));
+        exit();
+        
+    } catch (Exception $e) {
+        $mensaje = '<div class="alert alert-danger">' . $e->getMessage() . '</div>';
+    }
+}
+
+// ========== OBTENER LISTA DE ESTUDIANTES ==========
 $query = "SELECT e.*, u.nombre, u.apellido, u.correo, u.estado as estado_usuario, 
-                 c.nombre as carrera_nombre, c.codigo as carrera_codigo
+                 c.nombre as carrera_nombre
           FROM estudiantes e
           JOIN usuario u ON e.id_usuario = u.id_usuario
           LEFT JOIN carreras c ON e.id_carrera = c.id_carrera
-          ORDER BY u.apellido ASC, u.nombre ASC";
+          ORDER BY u.apellido, u.nombre";
 
 $estudiantes = $conexion->query($query);
 $total_estudiantes = $estudiantes->num_rows;
 
-// Obtener estadísticas - CORREGIDO con COALESCE para evitar NULL
-$query_stats = "SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN u.estado = 'activo' THEN 1 ELSE 0 END) as activos,
-                SUM(CASE WHEN u.estado = 'inactivo' THEN 1 ELSE 0 END) as inactivos,
-                COALESCE(AVG(e.año_carrera), 0) as año_promedio,
-                COALESCE(AVG(e.semestre_actual), 0) as semestre_promedio
-                FROM estudiantes e
-                JOIN usuario u ON e.id_usuario = u.id_usuario";
-$stats = $conexion->query($query_stats)->fetch_assoc();
-
-// Obtener carreras para filtros
-$carreras = $conexion->query("SELECT id_carrera, nombre, codigo FROM carreras WHERE estado = 'activa' ORDER BY nombre");
+// Obtener carreras para combobox
+$carreras = $conexion->query("SELECT id_carrera, nombre FROM carreras WHERE estado = 'activa' ORDER BY nombre");
 ?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -96,371 +195,213 @@ $carreras = $conexion->query("SELECT id_carrera, nombre, codigo FROM carreras WH
     <title>Estudiantes - Sistema UTP</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="http://localhost/Sistema-de-matricula-/app/public/assets/css/estudiantes.css">
-
 </head>
 <body>
     <div class="dashboard-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="logo">
-                <h2>UTP Admin</h2>
-                <small>Sistema de Matrícula</small>
-            </div>
-            
-            <div class="user-info">
-                <div class="avatar">
-                    <?php echo strtoupper(substr($_SESSION['user_name'], 0, 1)); ?>
-                </div>
-                <h3><?php echo $_SESSION['user_name']; ?></h3>
-                <p>Administrador</p>
-            </div>
-            
-            <nav class="nav-menu">
-                <a href="dashboard.php" class="nav-item">
-                    <i class="bi bi-speedometer2"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="estudiantes.php" class="nav-item active">
-                    <i class="bi bi-people"></i>
-                    <span>Estudiantes</span>
-                </a>
-                <a href="docentes.php" class="nav-item">
-                    <i class="bi bi-person-video"></i>
-                    <span>Docentes</span>
-                </a>
-                <a href="materias.php" class="nav-item">
-                    <i class="bi bi-journal-text"></i>
-                    <span>Materias</span>
-                </a>
-                <a href="matriculas.php" class="nav-item">
-                    <i class="bi bi-pencil-square"></i>
-                    <span>Matrículas</span>
-                </a>
-                <a href="carreras.php" class="nav-item">
-                    <i class="bi bi-mortarboard"></i>
-                    <span>Carreras</span>
-                </a>
-                <a href="periodos.php" class="nav-item">
-                    <i class="bi bi-calendar-range"></i>
-                    <span>Períodos</span>
-                </a>
-                <a href="reportes.php" class="nav-item">
-                    <i class="bi bi-graph-up"></i>
-                    <span>Reportes</span>
-                </a>
-                <a href="auditoria.php" class="nav-item">
-                    <i class="bi bi-clipboard-data"></i>
-                    <span>Auditoría</span>
-                </a>
-                
-                <div class="logout">
-                    <a href="../auth/logout.php" class="nav-item">
-                        <i class="bi bi-box-arrow-right"></i>
-                        <span>Cerrar Sesión</span>
-                    </a>
-                </div>
-            </nav>
-</aside>
-
-        <!-- Main Content -->
+        <?php include 'partials/sidebar.php'; ?>
+        
         <main class="main-content">
             <div class="estudiantes-container">
-                <!-- Breadcrumb -->
-                <div class="breadcrumb">
-                    <a href="dashboard.php"><i class="bi bi-house-door"></i> Dashboard</a>
-                    <span> / </span>
-                    <span>Estudiantes</span>
-                </div>
-                
                 <!-- Header -->
                 <div class="header-actions">
-                    <h1>
-                        <i class="bi bi-people"></i>
-                        Administración de Estudiantes
-                    </h1>
-                    <div style="display: flex; gap: 10px;">
-                        <a href="estudiantes.php?accion=nuevo" class="btn-action btn-green">
-                            <i class="bi bi-plus-circle"></i> Nuevo Estudiante
-                        </a>
-                        <a href="reportes.php?tipo=estudiantes" class="btn-action btn-purple">
-                            <i class="bi bi-printer"></i> Generar Reporte
-                        </a>
-                        <button onclick="exportToCSV()" class="btn-action" style="background: #38a169;">
-                            <i class="bi bi-download"></i> Exportar CSV
-                        </button>
-                    </div>
+                    <h1><i class="bi bi-people"></i> Administración de Estudiantes</h1>
+                    <a href="?accion=nuevo" class="btn-action btn-green">
+                        <i class="bi bi-plus-circle"></i> Nuevo Estudiante
+                    </a>
                 </div>
                 
-                <!-- Mensaje de éxito/error -->
-                <?php if (isset($_GET['mensaje'])): ?>
-                <div class="alert">
-                    <span><?php echo htmlspecialchars($_GET['mensaje']); ?></span>
-                    <button class="alert-close" onclick="this.parentElement.style.display='none'">&times;</button>
-                </div>
-                <?php endif; ?>
+                <?php 
+                if (isset($_GET['mensaje'])) {
+                    echo '<div class="alert alert-success">' . htmlspecialchars($_GET['mensaje']) . '</div>';
+                }
+                echo $mensaje; 
+                ?>
                 
-                <!-- Estadísticas -->
-                <div class="stats-container">
-                    <div class="stat-card">
-                        <i class="bi bi-people" style="color: #2a5298;"></i>
-                        <div class="stat-number"><?php echo $stats['total']; ?></div>
-                        <div class="stat-label">Total de Estudiantes</div>
+                <?php if ($accion == 'nuevo' || $accion == 'editar'): ?>
+                    <!-- FORMULARIO DE ESTUDIANTE -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>
+                                <i class="bi bi-<?php echo $accion == 'nuevo' ? 'plus-circle' : 'pencil'; ?>"></i>
+                                <?php echo $accion == 'nuevo' ? 'Nuevo Estudiante' : 'Editar Estudiante'; ?>
+                            </h2>
+                            <a href="estudiantes.php" class="btn-action">Cancelar</a>
+                        </div>
+                        
+                        <form method="POST" action="">
+                            <?php if ($estudiante_editar): ?>
+                                <input type="hidden" name="id_estudiante" value="<?php echo $estudiante_editar['id_estudiante']; ?>">
+                            <?php endif; ?>
+                            
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Nombre *</label>
+                                    <input type="text" name="nombre" 
+                                           value="<?php echo htmlspecialchars($estudiante_editar['nombre'] ?? ''); ?>" 
+                                           required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Apellido *</label>
+                                    <input type="text" name="apellido" 
+                                           value="<?php echo htmlspecialchars($estudiante_editar['apellido'] ?? ''); ?>" 
+                                           required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Cédula *</label>
+                                    <input type="text" name="cedula" 
+                                           value="<?php echo htmlspecialchars($estudiante_editar['cedula'] ?? ''); ?>" 
+                                           required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Correo UTP *</label>
+                                    <input type="email" name="correo" 
+                                           value="<?php echo htmlspecialchars($estudiante_editar['correo'] ?? ''); ?>" 
+                                           required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Teléfono</label>
+                                    <input type="text" name="telefono" 
+                                           value="<?php echo htmlspecialchars($estudiante_editar['telefono'] ?? ''); ?>">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Contraseña <?php echo $accion == 'nuevo' ? '*' : '(dejar en blanco para no cambiar)'; ?></label>
+                                    <input type="password" name="password" 
+                                           <?php echo $accion == 'nuevo' ? 'required' : ''; ?>>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Año de Carrera</label>
+                                    <select name="año_carrera" required>
+                                        <?php for($i = 1; $i <= 5; $i++): ?>
+                                        <option value="<?php echo $i; ?>" 
+                                            <?php echo ($estudiante_editar['año_carrera'] ?? 1) == $i ? 'selected' : ''; ?>>
+                                            Año <?php echo $i; ?>
+                                        </option>
+                                        <?php endfor; ?>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Semestre Actual</label>
+                                    <select name="semestre_actual" required>
+                                        <option value="1" <?php echo ($estudiante_editar['semestre_actual'] ?? 1) == 1 ? 'selected' : ''; ?>>1</option>
+                                        <option value="2" <?php echo ($estudiante_editar['semestre_actual'] ?? 1) == 2 ? 'selected' : ''; ?>>2</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Carrera</label>
+                                    <select name="id_carrera">
+                                        <option value="">Sin carrera asignada</option>
+                                        <?php while($carrera = $carreras->fetch_assoc()): ?>
+                                        <option value="<?php echo $carrera['id_carrera']; ?>"
+                                            <?php echo ($estudiante_editar['id_carrera'] ?? 0) == $carrera['id_carrera'] ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($carrera['nombre']); ?>
+                                        </option>
+                                        <?php endwhile; ?>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>Estado</label>
+                                    <select name="estado" required>
+                                        <option value="activo" <?php echo ($estudiante_editar['estado_usuario'] ?? 'activo') == 'activo' ? 'selected' : ''; ?>>Activo</option>
+                                        <option value="inactivo" <?php echo ($estudiante_editar['estado_usuario'] ?? '') == 'inactivo' ? 'selected' : ''; ?>>Inactivo</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn-action btn-green">
+                                <i class="bi bi-save"></i> Guardar Estudiante
+                            </button>
+                        </form>
                     </div>
                     
-                    <div class="stat-card">
-                        <i class="bi bi-check-circle" style="color: #38a169;"></i>
-                        <div class="stat-number"><?php echo $stats['activos']; ?></div>
-                        <div class="stat-label">Estudiantes Activos</div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <i class="bi bi-x-circle" style="color: #e53e3e;"></i>
-                        <div class="stat-number"><?php echo $stats['inactivos']; ?></div>
-                        <div class="stat-label">Estudiantes Inactivos</div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <i class="bi bi-graph-up" style="color: #805ad5;"></i>
-                        <div class="stat-number">Año <?php echo number_format($stats['año_promedio'], 1); ?></div>
-                        <div class="stat-label">Año Promedio de Carrera</div>
-                    </div>
-                </div>
-                
-                <!-- Filtros -->
-                <div class="filters">
-                    <div class="filter-group">
-                        <select id="filterEstado">
-                            <option value="">Todos los estados</option>
-                            <option value="activo">Activos</option>
-                            <option value="inactivo">Inactivos</option>
-                        </select>
-                        <select id="filterCarrera">
-                            <option value="">Todas las carreras</option>
-                            <?php 
-                            // Resetear el puntero de carreras para usar de nuevo
-                            $carreras->data_seek(0);
-                            while($carrera = $carreras->fetch_assoc()): 
-                            ?>
-                            <option value="<?php echo $carrera['id_carrera']; ?>">
-                                <?php echo htmlspecialchars($carrera['codigo'] . ' - ' . $carrera['nombre']); ?>
-                            </option>
-                            <?php endwhile; ?>
-                        </select>
-                        <select id="filterAño">
-                            <option value="">Todos los años</option>
-                            <option value="1">Año 1</option>
-                            <option value="2">Año 2</option>
-                            <option value="3">Año 3</option>
-                            <option value="4">Año 4</option>
-                            <option value="5">Año 5</option>
-                        </select>
-                        <input type="text" id="searchEstudiante" placeholder="Buscar por nombre, cédula o correo..." style="flex: 1;">
-                    </div>
-                </div>
-                
-                <!-- Tabla -->
-                <div class="table-container">
-                    <table class="estudiantes-table" id="estudiantesTable">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Estudiante</th>
-                                <th>Información</th>
-                                <th>Carrera</th>
-                                <th>Avance</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if ($estudiantes->num_rows > 0): ?>
-                                <?php while($estudiante = $estudiantes->fetch_assoc()): ?>
-                                <tr data-carrera-id="<?php echo $estudiante['id_carrera'] ?? ''; ?>" 
-                                    data-año="<?php echo $estudiante['año_carrera']; ?>"
-                                    data-estado="<?php echo $estudiante['estado_usuario']; ?>">
-                                    <td><strong>#<?php echo $estudiante['id_estudiante']; ?></strong></td>
-                                    <td>
-                                        <strong><?php echo htmlspecialchars($estudiante['nombre'] . ' ' . $estudiante['apellido']); ?></strong><br>
-                                        <small style="color: #666;"><?php echo htmlspecialchars($estudiante['cedula']); ?></small>
-                                    </td>
-                                    <td>
-                                        <div><i class="bi bi-envelope"></i> <?php echo htmlspecialchars($estudiante['correo']); ?></div>
-                                        <div><i class="bi bi-telephone"></i> <?php echo htmlspecialchars($estudiante['telefono'] ?? 'No registrado'); ?></div>
-                                        <div><i class="bi bi-calendar"></i> Ingreso: <?php echo date('d/m/Y', strtotime($estudiante['fecha_ingreso'] ?? date('Y-m-d'))); ?></div>
-                                    </td>
-                                    <td>
-                                        <?php if ($estudiante['carrera_nombre']): ?>
-                                        <div>
-                                            <strong><?php echo htmlspecialchars($estudiante['carrera_codigo']); ?></strong><br>
-                                            <?php echo htmlspecialchars($estudiante['carrera_nombre']); ?>
-                                        </div>
-                                        <?php else: ?>
-                                        <span class="badge badge-secondary">Sin asignar</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <div>
-                                            <strong>Año <?php echo $estudiante['año_carrera']; ?> - Semestre <?php echo $estudiante['semestre_actual']; ?></strong>
-                                            <div class="progress-bar">
-                                                <?php 
-                                                // Calcular porcentaje de avance (asumiendo 4 años = 8 semestres)
-                                                $semestres_totales = 8;
-                                                $semestres_completados = (($estudiante['año_carrera'] - 1) * 2) + ($estudiante['semestre_actual'] - 1);
-                                                $porcentaje = min(100, ($semestres_completados / $semestres_totales) * 100);
-                                                ?>
-                                                <div class="progress-fill" style="width: <?php echo $porcentaje; ?>%"></div>
+                <?php else: ?>
+                    <!-- LISTA DE ESTUDIANTES -->
+                    <div class="table-container">
+                        <table class="estudiantes-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Estudiante</th>
+                                    <th>Cédula</th>
+                                    <th>Correo</th>
+                                    <th>Carrera</th>
+                                    <th>Año</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if ($total_estudiantes > 0): ?>
+                                    <?php while($est = $estudiantes->fetch_assoc()): ?>
+                                    <tr>
+                                        <td>#<?php echo $est['id_estudiante']; ?></td>
+                                        <td>
+                                            <strong><?php echo htmlspecialchars($est['nombre'] . ' ' . $est['apellido']); ?></strong><br>
+                                            <small><?php echo htmlspecialchars($est['telefono'] ?? 'Sin teléfono'); ?></small>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($est['cedula']); ?></td>
+                                        <td><?php echo htmlspecialchars($est['correo']); ?></td>
+                                        <td><?php echo htmlspecialchars($est['carrera_nombre'] ?? 'Sin asignar'); ?></td>
+                                        <td>Año <?php echo $est['año_carrera']; ?> - S<?php echo $est['semestre_actual']; ?></td>
+                                        <td>
+                                            <span class="badge badge-<?php echo $est['estado_usuario'] == 'activo' ? 'success' : 'warning'; ?>">
+                                                <?php echo ucfirst($est['estado_usuario']); ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div style="display: flex; gap: 5px;">
+                                                <a href="?accion=editar&id=<?php echo $est['id_estudiante']; ?>" 
+                                                   class="btn-action btn-blue btn-sm" title="Editar">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                                <a href="matriculas.php?id_estudiante=<?php echo $est['id_estudiante']; ?>" 
+                                                   class="btn-action btn-purple btn-sm" title="Ver matrículas">
+                                                    <i class="bi bi-list-check"></i>
+                                                </a>
+                                                <a href="?accion=eliminar&id=<?php echo $est['id_estudiante']; ?>" 
+                                                   onclick="return confirm('¿Eliminar a <?php echo addslashes($est['nombre'] . ' ' . $est['apellido']); ?>?')"
+                                                   class="btn-action btn-danger btn-sm" title="Eliminar">
+                                                    <i class="bi bi-trash"></i>
+                                                </a>
                                             </div>
-                                            <small style="color: #666;"><?php echo round($porcentaje, 1); ?>% completado</small>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <?php 
-                                        $badge_class = $estudiante['estado_usuario'] === 'activo' ? 'badge-success' : 'badge-warning';
-                                        ?>
-                                        <span class="badge <?php echo $badge_class; ?>">
-                                            <?php echo ucfirst($estudiante['estado_usuario']); ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div style="display: flex; gap: 5px;">
-                                            <a href="estudiantes.php?accion=editar&id=<?php echo $estudiante['id_estudiante']; ?>" 
-                                               class="btn-action btn-blue btn-sm" title="Editar">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
-                                            <a href="matriculas.php?id_estudiante=<?php echo $estudiante['id_estudiante']; ?>" 
-                                               class="btn-action btn-purple btn-sm" title="Ver matrículas">
-                                                <i class="bi bi-list-check"></i>
-                                            </a>
-                                            <a href="estudiantes.php?accion=eliminar&id=<?php echo $estudiante['id_estudiante']; ?>" 
-                                               onclick="return confirm('¿Estás seguro de eliminar a <?php echo addslashes($estudiante['nombre'] . ' ' . $estudiante['apellido']); ?>?')"
-                                               class="btn-action btn-danger btn-sm" title="Eliminar">
-                                                <i class="bi bi-trash"></i>
+                                        </td>
+                                    </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                <tr>
+                                    <td colspan="8">
+                                        <div class="empty-state">
+                                            <i class="bi bi-people"></i>
+                                            <h3>No hay estudiantes registrados</h3>
+                                            <p>Comienza agregando el primer estudiante</p>
+                                            <a href="?accion=nuevo" class="btn-action btn-green">
+                                                <i class="bi bi-plus-circle"></i> Agregar Estudiante
                                             </a>
                                         </div>
                                     </td>
                                 </tr>
-                                <?php endwhile; ?>
-                            <?php else: ?>
-                            <tr>
-                                <td colspan="7">
-                                    <div class="empty-state">
-                                        <i class="bi bi-people"></i>
-                                        <h3>No hay estudiantes registrados</h3>
-                                        <p>Comienza agregando el primer estudiante al sistema.</p>
-                                        <a href="estudiantes.php?accion=nuevo" class="btn-action btn-green">
-                                            <i class="bi bi-plus-circle"></i> Agregar Primer Estudiante
-                                        </a>
-                                    </div>
-                                </td>
-                            </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-                
-                <!-- Resumen -->
-                <?php if ($total_estudiantes > 0): ?>
-                <div class="summary-box">
-                    <strong>Total de estudiantes:</strong> <?php echo $total_estudiantes; ?> |
-                    <strong>Activos:</strong> <?php echo $stats['activos']; ?> |
-                    <strong>Inactivos:</strong> <?php echo $stats['inactivos']; ?> |
-                    <strong>Año promedio:</strong> <?php echo number_format($stats['año_promedio'], 1); ?>
-                </div>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <?php if ($total_estudiantes > 0): ?>
+                    <div class="summary-box">
+                        <strong>Total:</strong> <?php echo $total_estudiantes; ?> estudiante(s)
+                    </div>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </main>
     </div>
-    
-    <script>
-        // Filtro por estado
-        document.getElementById('filterEstado').addEventListener('change', function() {
-            const estado = this.value;
-            const rows = document.querySelectorAll('#estudiantesTable tbody tr');
-            
-            rows.forEach(row => {
-                const estadoData = row.getAttribute('data-estado');
-                if (!estado || estadoData === estado) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-        
-        // Filtro por carrera
-        document.getElementById('filterCarrera').addEventListener('change', function() {
-            const carreraId = this.value;
-            const rows = document.querySelectorAll('#estudiantesTable tbody tr');
-            
-            rows.forEach(row => {
-                const carreraData = row.getAttribute('data-carrera-id');
-                if (!carreraId || carreraData === carreraId) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-        
-        // Filtro por año
-        document.getElementById('filterAño').addEventListener('change', function() {
-            const año = this.value;
-            const rows = document.querySelectorAll('#estudiantesTable tbody tr');
-            
-            rows.forEach(row => {
-                const añoData = row.getAttribute('data-año');
-                if (!año || añoData === año) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-        
-        // Búsqueda
-        document.getElementById('searchEstudiante').addEventListener('input', function() {
-            const searchText = this.value.toLowerCase();
-            const rows = document.querySelectorAll('#estudiantesTable tbody tr');
-            
-            rows.forEach(row => {
-                const nombre = row.querySelector('td:nth-child(2) strong').textContent.toLowerCase();
-                const cedula = row.querySelector('td:nth-child(2) small').textContent.toLowerCase();
-                const correo = row.querySelector('td:nth-child(3) div:nth-child(1)').textContent.toLowerCase();
-                
-                if (nombre.includes(searchText) || cedula.includes(searchText) || correo.includes(searchText)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-        
-        // Exportar a CSV
-        function exportToCSV() {
-            const rows = document.querySelectorAll('#estudiantesTable tr');
-            const csv = [];
-            
-            rows.forEach(row => {
-                const rowData = [];
-                const cols = row.querySelectorAll('td, th');
-                
-                cols.forEach(col => {
-                    let text = col.innerText.replace(/\n/g, ' ').trim();
-                    text = text.replace(/,/g, ';');
-                    rowData.push(`"${text}"`);
-                });
-                
-                csv.push(rowData.join(','));
-            });
-            
-            const csvContent = csv.join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = 'estudiantes_utp_' + new Date().toISOString().slice(0,10) + '.csv';
-            link.click();
-        }
-    </script>
 </body>
 </html>
 <?php $conexion->close(); ?>

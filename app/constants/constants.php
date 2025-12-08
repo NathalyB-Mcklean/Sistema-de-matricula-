@@ -1,1 +1,0 @@
-#Eliminé cosas, daba conflicto con login y registro. 
