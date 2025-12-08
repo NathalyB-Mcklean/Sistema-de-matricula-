@@ -283,7 +283,7 @@ $sidebar_path = $base_path . '\partials\sidebar.php';
                 </div>
             </div>
             
-            <!-- Contenido principal -->
+            <!-- Contenido principal - CORREGIDO -->
             <div class="content-grid">
                 <!-- Últimos estudiantes -->
                 <div class="card">
@@ -362,7 +362,9 @@ $sidebar_path = $base_path . '\partials\sidebar.php';
                         </table>
                     </div>
                 </div>
-              </main>
+            </div> <!-- Cierre del content-grid -->
+            
+        </main>
     </div>
 </body>
 </html>

@@ -86,7 +86,7 @@ if ($id_materia && $accion == 'editar') {
 if ($accion === 'eliminar' && $id_materia) {
     try {
         // Verificar si tiene grupos asignados
-        $stmt_check = $conexion->prepare("SELECT COUNT(*) as total FROM grupos WHERE id_materia = ?");
+        $stmt_check = $conexion->prepare("SELECT COUNT(*) as total FROM grupos_horarios_materia WHERE id_materia = ?");
         $stmt_check->bind_param("i", $id_materia);
         $stmt_check->execute();
         $result = $stmt_check->get_result()->fetch_assoc();
