@@ -12,8 +12,86 @@ require_once '../../config/conexion.php';
 // Manejar acciones CRUD
 $accion = $_GET['accion'] ?? 'listar';
 $id_periodo = $_GET['id'] ?? null;
+$mensaje = '';
 
-// Procesar eliminación
+// ========== PROCESAR CREACIÓN/ACTUALIZACIÓN DE PERÍODO ==========
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    try {
+        // Sanitizar y validar datos
+        $nombre = trim($_POST['nombre'] ?? '');
+        $año = intval($_POST['año'] ?? date('Y'));
+        $semestre = intval($_POST['semestre'] ?? 1);
+        $fecha_inicio = $_POST['fecha_inicio'] ?? '';
+        $fecha_fin = $_POST['fecha_fin'] ?? '';
+        $estado = $_POST['estado'] ?? 'planificado';
+        
+        // Validaciones básicas
+        if (empty($nombre)) {
+            throw new Exception("El nombre del período es obligatorio");
+        }
+        
+        if (empty($fecha_inicio) || empty($fecha_fin)) {
+            throw new Exception("Las fechas de inicio y fin son obligatorias");
+        }
+        
+        if ($fecha_fin <= $fecha_inicio) {
+            throw new Exception("La fecha de fin debe ser posterior a la fecha de inicio");
+        }
+        
+        if (isset($_POST['id_periodo']) && !empty($_POST['id_periodo'])) {
+            // ========== ACTUALIZAR PERÍODO ==========
+            $id_periodo_update = intval($_POST['id_periodo']);
+            
+            $stmt = $conexion->prepare("
+                UPDATE periodos_academicos SET 
+                nombre = ?, año = ?, semestre = ?, fecha_inicio = ?, fecha_fin = ?, estado = ?
+                WHERE id_periodo = ?
+            ");
+            $stmt->bind_param("siissii", 
+                $nombre, $año, $semestre, $fecha_inicio, $fecha_fin, $estado, $id_periodo_update
+            );
+            
+            if ($stmt->execute()) {
+                $mensaje = "Período actualizado exitosamente";
+            } else {
+                throw new Exception("Error al actualizar: " . $stmt->error);
+            }
+        } else {
+            // ========== CREAR NUEVO PERÍODO ==========
+            $stmt = $conexion->prepare("
+                INSERT INTO periodos_academicos 
+                (nombre, año, semestre, fecha_inicio, fecha_fin, estado)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->bind_param("siisss", 
+                $nombre, $año, $semestre, $fecha_inicio, $fecha_fin, $estado
+            );
+            
+            if ($stmt->execute()) {
+                $mensaje = "Período creado exitosamente (ID: " . $conexion->insert_id . ")";
+            } else {
+                throw new Exception("Error al crear: " . $stmt->error);
+            }
+        }
+        
+        // Registrar en auditoría
+        $accion_audit = isset($_POST['id_periodo']) ? "Actualizó período: $nombre" : "Creó período: $nombre";
+        $audit_stmt = $conexion->prepare("INSERT INTO auditoria (usuario, accion) VALUES (?, ?)");
+        $audit_stmt->bind_param("ss", $_SESSION['user_name'], $accion_audit);
+        $audit_stmt->execute();
+        
+        // Redirigir con mensaje de éxito
+        header('Location: periodos.php?mensaje=' . urlencode($mensaje));
+        exit();
+        
+    } catch (Exception $e) {
+        $mensaje = $e->getMessage();
+        header('Location: periodos.php?mensaje=' . urlencode("Error: " . $mensaje));
+        exit();
+    }
+}
+
+// ========== PROCESAR ELIMINACIÓN ==========
 if ($accion === 'eliminar' && $id_periodo) {
     // Verificar si el período tiene matrículas asociadas
     $stmt_check = $conexion->prepare("SELECT COUNT(*) as total FROM matriculas WHERE id_periodo = ?");
@@ -45,7 +123,7 @@ if ($accion === 'eliminar' && $id_periodo) {
     exit();
 }
 
-// Procesar activación de período
+// ========== PROCESAR ACTIVACIÓN ==========
 if ($accion === 'activar' && $id_periodo) {
     // Desactivar todos los períodos primero
     $stmt_desactivar = $conexion->prepare("UPDATE periodos_academicos SET estado = 'inactivo' WHERE estado = 'activo'");
@@ -64,6 +142,20 @@ if ($accion === 'activar' && $id_periodo) {
     
     header('Location: periodos.php?mensaje=' . urlencode('Período activado exitosamente'));
     exit();
+}
+
+// ========== OBTENER PERÍODO PARA EDITAR ==========
+$periodo_editar = null;
+if ($accion == 'editar' && $id_periodo) {
+    $stmt = $conexion->prepare("SELECT * FROM periodos_academicos WHERE id_periodo = ?");
+    $stmt->bind_param("i", $id_periodo);
+    $stmt->execute();
+    $periodo_editar = $stmt->get_result()->fetch_assoc();
+    
+    if (!$periodo_editar) {
+        header('Location: periodos.php?mensaje=' . urlencode('Período no encontrado'));
+        exit();
+    }
 }
 
 // Obtener todos los períodos
@@ -178,7 +270,7 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
                         Administración de Períodos Académicos
                     </h1>
                     <div style="display: flex; gap: 10px;">
-                        <button onclick="mostrarModalNuevoPeriodo()" class="btn-action btn-green">
+                        <button onclick="mostrarModalPeriodo('nuevo')" class="btn-action btn-green">
                             <i class="bi bi-plus-circle"></i> Nuevo Período
                         </button>
                         <a href="reportes.php?tipo=periodos" class="btn-action btn-purple">
@@ -225,17 +317,17 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
                     </div>
                 </div>
                 
-                <!-- Tabla CORREGIDA -->
+                <!-- Tabla -->
                 <div class="table-container">
                     <table class="periodos-table" id="periodosTable">
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>PERÍODO</th>
-                                <th>FECHAS</th>
-                                <th>DURACIÓN</th>
-                                <th>ESTADO</th>
-                                <th>ACCIONES</th>
+                                <th>Período</th>
+                                <th>Fechas</th>
+                                <th>Duración</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -270,11 +362,11 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
                                             <strong><?php echo htmlspecialchars($periodo['nombre']); ?></strong>
                                             <div class="periodo-info">
                                                 <div class="info-item">
-                                                    <span class="info-label">AÑO</span>
+                                                    <span class="info-label">Año</span>
                                                     <span class="info-value"><?php echo $periodo['año']; ?></span>
                                                 </div>
                                                 <div class="info-item">
-                                                    <span class="info-label">SEMESTRE</span>
+                                                    <span class="info-label">Semestre</span>
                                                     <span class="badge-semestre">
                                                         <?php 
                                                         switch($periodo['semestre']) {
@@ -292,11 +384,11 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
                                     <td>
                                         <div class="fecha-cell">
                                             <div class="info-item">
-                                                <span class="info-label">INICIO</span>
+                                                <span class="info-label">Inicio</span>
                                                 <span class="fecha-label"><?php echo date('d/m/Y', strtotime($periodo['fecha_inicio'])); ?></span>
                                             </div>
                                             <div class="info-item">
-                                                <span class="info-label">FIN</span>
+                                                <span class="info-label">Fin</span>
                                                 <span class="fecha-label"><?php echo date('d/m/Y', strtotime($periodo['fecha_fin'])); ?></span>
                                             </div>
                                         </div>
@@ -329,9 +421,7 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
                                     </td>
                                     <td>
                                         <span class="badge <?php echo $clase_estado; ?>">
-                                            <?php 
-                                            echo strtoupper($periodo['estado']);
-                                            ?>
+                                            <?php echo ucfirst($periodo['estado']); ?>
                                         </span>
                                         <div style="margin-top: 5px; font-size: 12px; color: #666;">
                                             <i class="bi bi-clock"></i> <?php echo date('d/m/Y H:i', strtotime($periodo['fecha_registro'])); ?>
@@ -347,10 +437,9 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
                                             </a>
                                             <?php endif; ?>
                                             
-                                            <a href="periodos.php?accion=editar&id=<?php echo $periodo['id_periodo']; ?>" 
-                                               class="btn-action btn-blue btn-sm" title="Editar">
+                                            <button onclick="editarPeriodo(<?php echo $periodo['id_periodo']; ?>)" class="btn-action btn-blue btn-sm" title="Editar">
                                                 <i class="bi bi-pencil"></i>
-                                            </a>
+                                            </button>
                                             
                                             <a href="periodos.php?accion=eliminar&id=<?php echo $periodo['id_periodo']; ?>" 
                                                onclick="return confirm('¿Estás seguro de eliminar el período <?php echo addslashes($periodo['nombre']); ?>?')"
@@ -368,7 +457,7 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
                                         <i class="bi bi-calendar-x"></i>
                                         <h3>No hay períodos registrados</h3>
                                         <p>Comienza creando el primer período académico para el sistema.</p>
-                                        <button onclick="mostrarModalNuevoPeriodo()" class="btn-action btn-green">
+                                        <button onclick="mostrarModalPeriodo('nuevo')" class="btn-action btn-green">
                                             <i class="bi bi-plus-circle"></i> Crear Primer Período
                                         </button>
                                     </div>
@@ -393,19 +482,21 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
         </main>
     </div>
     
-    <!-- Modal para nuevo período -->
-    <div class="modal" id="modalNuevoPeriodo">
+    <!-- Modal para nuevo/editar período -->
+    <div class="modal" id="modalPeriodo">
         <div class="modal-content">
             <div class="modal-header">
-                <h3><i class="bi bi-plus-circle"></i> Nuevo Período Académico</h3>
+                <h3 id="modalTitulo"><i class="bi bi-plus-circle"></i> Nuevo Período Académico</h3>
                 <button class="modal-close" onclick="cerrarModal()">&times;</button>
             </div>
-            <form method="POST" action="procesar_periodo.php">
+            <form method="POST" action="periodos.php">
+                <input type="hidden" name="id_periodo" id="id_periodo" value="">
+                
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="nombre">Nombre del Período *</label>
                         <input type="text" id="nombre" name="nombre" required 
-                               placeholder="Ej: 2025-1, 2025-V, Primer Semestre 2025">
+                               placeholder="Ej: Primer Semestre - 2026">
                     </div>
                     
                     <div class="form-group-row">
@@ -467,24 +558,81 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
     </div>
     
     <script>
-        // Modal
-        function mostrarModalNuevoPeriodo() {
-            // Establecer fecha mínima para hoy en fecha_inicio
-            const hoy = new Date().toISOString().split('T')[0];
-            document.getElementById('fecha_inicio').min = hoy;
-            document.getElementById('fecha_inicio').value = hoy;
+        // Modal para nuevo período
+        function mostrarModalPeriodo(tipo) {
+            const modal = document.getElementById('modalPeriodo');
+            const titulo = document.getElementById('modalTitulo');
+            const form = modal.querySelector('form');
+            const idPeriodo = document.getElementById('id_periodo');
             
-            // Establecer fecha_fin 4 meses después por defecto
-            const fechaFin = new Date();
-            fechaFin.setMonth(fechaFin.getMonth() + 4);
-            document.getElementById('fecha_fin').min = hoy;
-            document.getElementById('fecha_fin').value = fechaFin.toISOString().split('T')[0];
+            if (tipo === 'nuevo') {
+                titulo.innerHTML = '<i class="bi bi-plus-circle"></i> Nuevo Período Académico';
+                idPeriodo.value = '';
+                form.reset();
+                
+                // Establecer valores por defecto
+                const hoy = new Date().toISOString().split('T')[0];
+                document.getElementById('fecha_inicio').value = hoy;
+                document.getElementById('fecha_inicio').min = hoy;
+                
+                // Establecer fecha_fin 4 meses después por defecto
+                const fechaFin = new Date();
+                fechaFin.setMonth(fechaFin.getMonth() + 4);
+                document.getElementById('fecha_fin').value = fechaFin.toISOString().split('T')[0];
+                document.getElementById('fecha_fin').min = hoy;
+                
+                document.getElementById('año').value = new Date().getFullYear();
+                document.getElementById('semestre').value = '1';
+                document.getElementById('estado').value = 'planificado';
+            }
             
-            document.getElementById('modalNuevoPeriodo').style.display = 'block';
+            modal.style.display = 'block';
         }
         
+        // Función para cargar datos del período a editar
+        async function editarPeriodo(id) {
+            try {
+                // Hacer una petición para obtener los datos del período
+                const response = await fetch(`periodos.php?accion=editar&id=${id}`);
+                const data = await response.text();
+                
+                // Parsear la respuesta (asumiendo que es JSON)
+                // Nota: En realidad necesitamos una API para esto, pero por ahora
+                // vamos a redirigir a la página de edición
+                window.location.href = `periodos.php?accion=editar&id=${id}`;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al cargar los datos del período');
+            }
+        }
+        
+        <?php if ($accion == 'editar' && $periodo_editar): ?>
+        // Si estamos en modo edición, mostrar el modal con los datos cargados
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('modalPeriodo');
+            const titulo = document.getElementById('modalTitulo');
+            const idPeriodo = document.getElementById('id_periodo');
+            
+            titulo.innerHTML = '<i class="bi bi-pencil"></i> Editar Período Académico';
+            idPeriodo.value = '<?php echo $periodo_editar['id_periodo']; ?>';
+            document.getElementById('nombre').value = '<?php echo htmlspecialchars($periodo_editar['nombre']); ?>';
+            document.getElementById('año').value = '<?php echo $periodo_editar['año']; ?>';
+            document.getElementById('semestre').value = '<?php echo $periodo_editar['semestre']; ?>';
+            document.getElementById('fecha_inicio').value = '<?php echo $periodo_editar['fecha_inicio']; ?>';
+            document.getElementById('fecha_fin').value = '<?php echo $periodo_editar['fecha_fin']; ?>';
+            document.getElementById('estado').value = '<?php echo $periodo_editar['estado']; ?>';
+            
+            modal.style.display = 'block';
+        });
+        <?php endif; ?>
+        
         function cerrarModal() {
-            document.getElementById('modalNuevoPeriodo').style.display = 'none';
+            document.getElementById('modalPeriodo').style.display = 'none';
+            // Si estamos en modo edición, redirigir de vuelta a la lista
+            <?php if ($accion == 'editar'): ?>
+            window.location.href = 'periodos.php';
+            <?php endif; ?>
         }
         
         // Exportar a CSV
@@ -531,11 +679,19 @@ $stats = $conexion->query($query_stats)->fetch_assoc();
         
         // Cerrar modal al hacer clic fuera
         window.onclick = function(event) {
-            const modal = document.getElementById('modalNuevoPeriodo');
+            const modal = document.getElementById('modalPeriodo');
             if (event.target === modal) {
                 cerrarModal();
             }
         }
+        
+        // Auto-cerrar mensajes después de 5 segundos
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                alert.style.display = 'none';
+            });
+        }, 5000);
     </script>
 </body>
 </html>

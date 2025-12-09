@@ -1,5 +1,5 @@
 <?php
-// app/views/admin/docentes.php - VERSIÓN COMPLETA CON CRUD
+// app/views/admin/docentes.php - VERSIÓN COMPLETA CORREGIDA
 
 session_start();
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
@@ -17,22 +17,27 @@ $id_docente = $_GET['id'] ?? null;
 // ========== PROCESAR FORMULARIO ==========
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     try {
-        // Sanitizar y validar
-        // Así se usa en los nuevos CRUDs
-        $nombre = Validaciones::sanitizarTexto($_POST['nombre']);
-        $correo = validarCorreoUTP($_POST['correo']);
-        $año = Validaciones::validarRango($_POST['año'], 1, 5, 'año');
-        $apellido = Validaciones::sanitizarTexto($_POST['apellido']);
-        $cedula = Validaciones::sanitizarTexto($_POST['cedula']);
-        $telefono = Validaciones::sanitizarTexto($_POST['telefono']);
-        $titulo = Validaciones::sanitizarTexto($_POST['titulo_academico']);
-        $especialidad = Validaciones::sanitizarTexto($_POST['especialidad']);
-        $experiencia = Validaciones::sanitizarEntero($_POST['años_experiencia']);
+        // Sanitizar y validar datos del formulario
+        $nombre = Validaciones::sanitizarTexto($_POST['nombre'] ?? '');
+        $apellido = Validaciones::sanitizarTexto($_POST['apellido'] ?? '');
+        $cedula = Validaciones::sanitizarTexto($_POST['cedula'] ?? '');
+        // CORRECCIÓN: Cambiar sanitizarEmail por sanitizarTexto
+        $correo = Validaciones::sanitizarTexto($_POST['correo'] ?? '');
+        $telefono = Validaciones::sanitizarTexto($_POST['telefono'] ?? '');
+        $titulo = Validaciones::sanitizarTexto($_POST['titulo_academico'] ?? '');
+        $especialidad = Validaciones::sanitizarTexto($_POST['especialidad'] ?? '');
+        $experiencia = Validaciones::sanitizarEntero($_POST['años_experiencia'] ?? 0);
         $estado = $_POST['estado'] ?? 'activo';
         
+        // Validaciones básicas
         Validaciones::validarNoVacio($nombre, 'nombre');
         Validaciones::validarNoVacio($apellido, 'apellido');
         Validaciones::validarNoVacio($cedula, 'cédula');
+        
+        // Validar correo electrónico
+        if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+            throw new Exception("Correo electrónico inválido");
+        }
         
         if (isset($_POST['id_docente'])) {
             // ========== ACTUALIZAR DOCENTE ==========
@@ -50,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             );
             $stmt->execute();
             
-            $mensaje = '<div class="alert alert-success">Docente actualizado</div>';
+            $mensaje = '<div class="alert alert-success">Docente actualizado correctamente</div>';
             
         } else {
             // ========== CREAR NUEVO DOCENTE ==========
@@ -65,7 +70,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             );
             $stmt->execute();
             
-            $mensaje = '<div class="alert alert-success">Docente creado</div>';
+            $nuevo_id = $conexion->insert_id;
+            $mensaje = '<div class="alert alert-success">Docente creado exitosamente (ID: ' . $nuevo_id . ')</div>';
         }
         
         // Crear usuario automáticamente si no existe
@@ -82,9 +88,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             ");
             $stmt_usuario->bind_param("sssss", $nombre, $apellido, $correo, $password_hash, $estado);
             $stmt_usuario->execute();
+            
+            $mensaje .= '<div class="alert alert-info">Usuario creado automáticamente (contraseña: cédula)</div>';
         }
         
-        header('Location: docentes.php?mensaje=' . urlencode('Operación exitosa'));
+        // Redirigir para evitar reenvío del formulario
+        header('Location: docentes.php?accion=listar&mensaje=' . urlencode('Operación exitosa'));
         exit();
         
     } catch (Exception $e) {
@@ -99,6 +108,11 @@ if ($id_docente && $accion == 'editar') {
     $stmt->bind_param("i", $id_docente);
     $stmt->execute();
     $docente_editar = $stmt->get_result()->fetch_assoc();
+    
+    if (!$docente_editar) {
+        header('Location: docentes.php?mensaje=' . urlencode('Docente no encontrado'));
+        exit();
+    }
 }
 
 // ========== ELIMINAR DOCENTE ==========
@@ -124,7 +138,7 @@ if ($accion === 'eliminar' && $id_docente) {
             $msg = "Docente eliminado exitosamente";
         }
         
-        // Auditoría
+        // Registrar en auditoría
         $audit = $conexion->prepare("INSERT INTO auditoria (usuario, accion) VALUES (?, ?)");
         $accion_audit = "Eliminó docente ID: $id_docente";
         $audit->bind_param("ss", $_SESSION['user_name'], $accion_audit);
@@ -223,6 +237,7 @@ $total_docentes = $docentes->num_rows;
                                     <input type="email" name="correo" 
                                            value="<?php echo htmlspecialchars($docente_editar['correo'] ?? ''); ?>" 
                                            required>
+                                    <small class="text-muted">Se recomienda usar correo institucional @utp.edu.ec</small>
                                 </div>
                                 
                                 <div class="form-group">
